@@ -1,0 +1,9 @@
+{
+  "name": "Settings",
+  "short_name": "Settings",
+  "description": "Wi-Fi, sound, display, notifications, lock, keyboard, apps, permissions and audit",
+  "start_url": "/",
+  "version": "1.0.0",
+  "icons": [],
+  "grokbot": { "id": "settings", "name_ko": "설정", "scopes": [] }
+}

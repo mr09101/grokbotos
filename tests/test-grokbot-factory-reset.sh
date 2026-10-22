@@ -69,7 +69,21 @@ assert_untouched "$GROKBOT_RESET_ROOT"
 assert_contains "${tmp}/help.out" "--confirm RESET"
 assert_untouched "$GROKBOT_RESET_ROOT"
 
+mkdir -p "${GROKBOT_RESET_ROOT}/var/lib/grokbot/lock-pin" "${GROKBOT_RESET_ROOT}/var/lib/grokbot/faillock"
+date >"${GROKBOT_RESET_ROOT}/var/lib/grokbot/lock-pin/grokbot"
+echo "1 0" >"${GROKBOT_RESET_ROOT}/var/lib/grokbot/lock-pin/.fail-grokbot"
+echo tally >"${GROKBOT_RESET_ROOT}/var/lib/grokbot/faillock/grokbot"
+"$reset" --dry-run >"${tmp}/pin-dry.out"
+assert_contains "${tmp}/pin-dry.out" "clear screen-lock PIN"
+assert_file "${GROKBOT_RESET_ROOT}/var/lib/grokbot/lock-pin/grokbot"
 "$reset" --confirm RESET >"${tmp}/wipe.out"
+# Security review #5: the PIN marker and tallies go too; in test mode the
+# real password is never touched.
+[[ ! -e "${GROKBOT_RESET_ROOT}/var/lib/grokbot/lock-pin/grokbot" ]] || fail "PIN marker kept"
+[[ ! -e "${GROKBOT_RESET_ROOT}/var/lib/grokbot/lock-pin/.fail-grokbot" ]] || fail "fail counter kept"
+[[ ! -e "${GROKBOT_RESET_ROOT}/var/lib/grokbot/faillock/grokbot" ]] || fail "faillock tally kept"
+assert_contains "${tmp}/wipe.out" "test mode"
+grep -q "usermod -p '!' grokbot" "$reset" || fail "real reset does not lock the password"
 assert_contains "${tmp}/wipe.out" "재부팅은 하지 않았습니다."
 [[ -d "${GROKBOT_RESET_ROOT}/var/home/grokbot" ]]
 [[ ! -e "${GROKBOT_RESET_ROOT}/var/home/grokbot/.config" ]]

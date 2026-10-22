@@ -26,7 +26,7 @@ ask() {
 }
 
 echo "화면 잠금 PIN 설정 / Set your screen-lock PIN"
-echo "잠금 화면을 풀 때 씁니다. 4자 이상, 숫자나 문자. / Used to unlock the screen. 4+ characters."
+echo "잠금 화면을 풀 때 씁니다. 6자 이상, 숫자나 문자. / Used to unlock the screen. 6+ characters."
 echo "나중에 하려면 Enter만 누르세요. / Press Enter alone to skip for now."
 echo
 current=""
@@ -47,8 +47,8 @@ for _ in 1 2 3; do
         echo "두 PIN이 다릅니다. / PINs do not match."
         continue
     fi
-    if (( ${#pin} < 4 )); then
-        echo "4자 이상이어야 합니다. / Must be at least 4 characters."
+    if (( ${#pin} < 6 )); then
+        echo "6자 이상이어야 합니다. / Must be at least 6 characters."
         continue
     fi
     if [[ -n $current ]]; then

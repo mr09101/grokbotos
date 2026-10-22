@@ -57,6 +57,7 @@ window.grokbot-dock { background-color: rgba(24,24,27,0.94); }
 .grokbot-dock .status { margin: 0 6px; }
 .grokbot-dock .status button { padding: 2px 4px; margin: 1px; }
 .grokbot-dock .status label { font-size: 13px; padding: 0 2px; }
+.grokbot-dock .status button.alert { background-color: #dc2626; color: #ffffff; }
 .grokbot-dock .sep { background-color: rgba(255,255,255,0.15); min-width: 1px; min-height: 1px; }
 """
 
@@ -165,9 +166,19 @@ def launch(info):
     swaymsg(f"workspace number {new_workspace()}; exec {cmd}")
 
 
+def monitors():
+    """Gdk monitors, the one at the origin (sway's primary layout spot) first."""
+    disp = Gdk.Display.get_default()
+    mons = [disp.get_monitor(i) for i in range(disp.get_n_monitors())]
+    if not mons:
+        return [None]
+    return sorted(mons, key=lambda m: (m.get_geometry().x, m.get_geometry().y))
+
+
 class Dock:
     def __init__(self):
         self.windows = {}
+        self.windows_monitors = []
         self.buttons = []  # (button, keys, info)
         self.status_box = None
         self.status_mode = None
@@ -183,9 +194,13 @@ class Dock:
         add_signal = getattr(GLib, "unix_signal_add")
         add_signal(GLib.PRIORITY_DEFAULT, signal.SIGHUP, self.reload)
         add_signal(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.quit)
+        # One dock per output; rebuild when outputs come and go.
+        disp = Gdk.Display.get_default()
+        disp.connect("monitor-added", lambda *_: GLib.idle_add(self._rebuild_once))
+        disp.connect("monitor-removed", lambda *_: GLib.idle_add(self._rebuild_once))
         self.rebuild()
         GLib.timeout_add(1500, self.refresh)
-        GLib.timeout_add_seconds(5, self.refresh_status)
+        GLib.timeout_add_seconds(2, self.refresh_status)
 
     def quit(self):
         Gtk.main_quit()
@@ -196,6 +211,13 @@ class Dock:
         self.rebuild()
         return True
 
+    def _rebuild_once(self):
+        # Only when the set of outputs really changed (Wayland announces the
+        # existing outputs at startup too).
+        if len(monitors()) != len(getattr(self, "windows_monitors", [])):
+            self.rebuild()
+        return False
+
     def rebuild(self):
         for w in self.windows.values():
             w.destroy()
@@ -204,18 +226,25 @@ class Dock:
         self.status_box = None
         self.status_widgets = {}
         apps = app_list(self.conf["hide"])
-        for edge in EDGES:
-            mode = self.conf[edge]
-            if mode != "off":
-                self.windows[edge] = self.make_window(edge, mode, apps)
+        self.windows_monitors = monitors()
+        for i, mon in enumerate(self.windows_monitors):
+            for edge in EDGES:
+                mode = self.conf[edge]
+                if mode != "off":
+                    # status indicators only on the primary (first) output
+                    self.windows[(i, edge)] = self.make_window(edge, mode, apps, mon, primary=(i == 0))
         self.refresh()
         self.refresh_status()
 
-    def make_window(self, edge, mode, apps):
+    def make_window(self, edge, mode, apps, mon=None, primary=True):
         win = Gtk.Window()
         win.get_style_context().add_class("grokbot-dock")
         GtkLayerShell.init_for_window(win)
         GtkLayerShell.set_namespace(win, "grokbot-dock")
+        if mon is not None and len(self.windows_monitors) > 1:
+            # Pin to an output only with several; with one, let the
+            # compositor place it (unchanged single-screen behaviour).
+            GtkLayerShell.set_monitor(win, mon)
         GtkLayerShell.set_layer(win, GtkLayerShell.Layer.TOP)
         e = {"top": GtkLayerShell.Edge.TOP, "bottom": GtkLayerShell.Edge.BOTTOM,
              "left": GtkLayerShell.Edge.LEFT, "right": GtkLayerShell.Edge.RIGHT}
@@ -283,7 +312,7 @@ class Dock:
         scroller.set_propagate_natural_width(True)
         scroller.set_propagate_natural_height(True)
         scroller.add(box)
-        if grokbot_status.status_edge(self.conf) == edge:
+        if primary and grokbot_status.status_edge(self.conf) == edge:
             # Status area at the END of the dock: right end of a top/bottom
             # dock, bottom end of a left/right dock.
             outer = Gtk.Box(orientation=orient, spacing=0)
@@ -307,7 +336,11 @@ class Dock:
             return True
         horiz, mode = self.status_mode
         size = max(16, min(24, self.conf["icon_size"] // 2))
-        for item in grokbot_status.items():
+        items = grokbot_status.items()
+        live = {i["id"] for i in items}
+        for sid, (b, _i, _l) in self.status_widgets.items():
+            b.set_visible(sid in live)
+        for pos, item in enumerate(items):
             w = self.status_widgets.get(item["id"])
             if w is None:
                 btn = Gtk.Button()
@@ -330,20 +363,33 @@ class Dock:
                 btn.show_all()
                 w = self.status_widgets[item["id"]] = (btn, img, lab)
             btn, img, lab = w
+            btn.set_visible(True)
+            self.status_box.reorder_child(btn, pos)
+            ctx = btn.get_style_context()
+            if item.get("alert"):
+                ctx.add_class("alert")
+            else:
+                ctx.remove_class("alert")
             if item["icon"]:
                 img.set_from_icon_name(item["icon"], Gtk.IconSize.BUTTON)
                 img.set_pixel_size(size)
             lab.set_text(item["text"] if (horiz or mode == "labels" or item["icon"] is None) else "")
             if item["id"] == "clock" and not horiz and mode != "labels":
                 lab.set_text(item["text"].replace(":", "\n"))
+            # Every dock, including icon-only top/bottom: the label lives
+            # in the tooltip (충전 중, 전원 연결됨, 전원 연결됨 (가득 참), NN%).
             btn.set_tooltip_text(item["tooltip"])
         return True
 
     def on_status_click(self, _btn, sid):
         if sid == "network":
-            subprocess.Popen(["/usr/local/bin/grokbot-wifi"])
+            subprocess.Popen(["/usr/local/bin/grokbot-settings", "wifi"])
+        elif sid.startswith("inuse-"):
+            subprocess.Popen(["/usr/local/bin/grokbot-settings", "permissions"])
         elif sid == "volume":
             subprocess.Popen(["/usr/local/bin/grokbot-volume", "mute"])
+        elif sid == "update":
+            subprocess.Popen(["/usr/local/bin/grokbot-settings", "update"])
         GLib.timeout_add(400, self.refresh_status_once)
 
     def on_status_scroll(self, _btn, event, sid):

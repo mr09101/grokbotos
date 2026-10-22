@@ -1,0 +1,17 @@
+{
+  "name": "System Monitor",
+  "short_name": "Monitor",
+  "description": "CPU, memory, disk, battery, network and API audit at a glance",
+  "start_url": "/",
+  "display": "standalone",
+  "lang": "ko",
+  "background_color": "#0f0f12",
+  "theme_color": "#0f0f12",
+  "version": "1.0.0",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "grokbot": {
+    "id": "sysmon",
+    "name_ko": "시스템 모니터",
+    "scopes": ["system", "power", "network", "audit"]
+  }
+}

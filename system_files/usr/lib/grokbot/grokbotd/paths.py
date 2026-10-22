@@ -85,5 +85,9 @@ def procfs():
     return _env("GROKBOT_PROCFS", "/proc")
 
 
+def webapps_dir():
+    return _env("GROKBOT_WEBAPPS_DIR", "/usr/share/grokbot/webapps")
+
+
 def http_port():
     return int(_env("GROKBOT_API_PORT", "7311"))

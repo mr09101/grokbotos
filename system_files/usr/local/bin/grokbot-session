@@ -57,4 +57,8 @@ export XMODIFIERS=@im=fcitx
 export QT_IM_MODULE=fcitx
 export SDL_IM_MODULE=fcitx
 
+# sway includes this file (Settings > Display); it must exist or sway
+# reports a config error.
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/grokbot"
+[ -e "${XDG_CONFIG_HOME:-$HOME/.config}/grokbot/outputs.conf" ] || : >"${XDG_CONFIG_HOME:-$HOME/.config}/grokbot/outputs.conf"
 exec sway

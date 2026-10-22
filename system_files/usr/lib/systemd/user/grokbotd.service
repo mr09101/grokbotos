@@ -1,5 +1,5 @@
 [Unit]
-Description=Grok Bot OS API daemon (read-only, phase 1)
+Description=Grok Bot OS API daemon (per-scope consent)
 Documentation=https://github.com/head77x/grokbotos/blob/main/docs/OS_API.md
 # Starts with the user manager; sway may come later. grokbotd finds the
 # sway IPC socket in $XDG_RUNTIME_DIR at call time.

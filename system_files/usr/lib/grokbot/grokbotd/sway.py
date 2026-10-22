@@ -1,4 +1,5 @@
-"""Minimal sway (i3) IPC client. Read-only messages only."""
+"""Minimal sway (i3) IPC client. RUN_COMMAND is used only by displays.py for
+`output ...` commands it builds from validated parameters."""
 import glob
 import json
 import os
@@ -8,7 +9,9 @@ import struct
 from . import paths
 
 MAGIC = b"i3-ipc"
+RUN_COMMAND = 0
 GET_WORKSPACES = 1
+GET_OUTPUTS = 3
 GET_TREE = 4
 
 

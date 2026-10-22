@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>설정 / Settings — Grok Bot OS</title>
+<link rel="stylesheet" href="style.css">
+<script src="i18n.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<nav id="nav">
+  <h1 data-t="app_title">설정</h1>
+  <a href="#wifi" data-page="wifi"><span data-t="nav_wifi">Wi-Fi</span></a>
+  <a href="#sound" data-page="sound"><span data-t="nav_sound">소리</span></a>
+  <a href="#display" data-page="display"><span data-t="nav_display">디스플레이</span></a>
+  <a href="#notifications" data-page="notifications"><span data-t="nav_notifications">알림</span></a>
+  <a href="#lock" data-page="lock"><span data-t="nav_lock">잠금과 대기</span></a>
+  <a href="#keyboard" data-page="keyboard"><span data-t="nav_keyboard">키보드와 한글</span></a>
+  <a href="#update" data-page="update"><span data-t="nav_update">업데이트</span></a>
+  <a href="#apps" data-page="apps"><span data-t="nav_apps">앱</span></a>
+  <a href="#permissions" data-page="permissions"><span data-t="nav_permissions">권한</span></a>
+  <a href="#audit" data-page="audit"><span data-t="nav_audit">감사 기록</span></a>
+  <div class="spacer"></div>
+  <button id="lang" type="button">English</button>
+</nav>
+<main id="main" aria-live="polite"></main>
+<div id="toast" role="status"></div>
+</body>
+</html>

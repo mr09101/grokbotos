@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미디어 플레이어</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+<header>
+  <img src="icon.svg" alt="" width="30" height="30">
+  <h1 data-t="title">미디어 플레이어</h1>
+  <span class="grow"></span>
+  <span class="pill" id="keys"></span>
+  <button type="button" id="lang">English</button>
+</header>
+<div id="wrap">
+  <main>
+    <div id="stage"><video id="v" playsinline></video><div id="art"><div id="disc">♪</div><div id="nowt"></div></div></div>
+    <div id="seek"><span id="cur" class="dim">0:00</span><input type="range" id="pos" min="0" max="1000" value="0"><span id="dur" class="dim">0:00</span></div>
+    <div id="ctl">
+      <button type="button" id="prev" title="이전"><img src="i-prev.svg" alt="" width="22" height="22"></button>
+      <button type="button" id="play" class="primary big" title="재생"><img id="playi" src="i-play.svg" alt="" width="26" height="26"></button>
+      <button type="button" id="next" title="다음"><img src="i-next.svg" alt="" width="22" height="22"></button>
+      <span class="grow"></span>
+      <span class="dim">🔊</span><input type="range" id="vol" min="0" max="100" value="80">
+    </div>
+  </main>
+  <aside>
+    <div class="row"><label class="filebtn primary"><span data-t="add">파일 추가</span><input type="file" id="pick" accept="audio/*,video/*" multiple></label>
+      <button type="button" id="clear" data-t="clear">목록 비우기</button></div>
+    <ol id="list"></ol>
+    <p class="dim" id="hint" data-t="hint">음악이나 동영상 파일을 고르거나 여기에 끌어다 놓으세요. 파일은 이 컴퓨터 밖으로 나가지 않습니다.</p>
+    <div id="need" class="need hidden"><span data-t="needkeys">키보드의 재생/다음 곡 키로 조작하려면 "미디어 키" 권한이 필요합니다.</span><button type="button" id="askkeys" data-t="ask">권한 요청</button><span class="dim" id="askmsg"></span></div>
+  </aside>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

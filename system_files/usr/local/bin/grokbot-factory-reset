@@ -18,7 +18,8 @@ usage() {
     cat <<'EOF'
 usage: grokbot-factory-reset [--dry-run] [--confirm RESET]
 
-Deletes only the contents of /var/home/grokbot after --confirm RESET.
+Deletes only the contents of /var/home/grokbot after --confirm RESET,
+and clears the screen-lock PIN (locks the grokbot password).
 --dry-run prints that list and deletes nothing.
 Does not reboot and does not modify /usr, /etc, or other homes.
 EOF
@@ -135,6 +136,7 @@ done
 
 if [[ "$dry" -eq 1 ]]; then
     echo "dry-run: 지우지 않습니다."
+    echo "clear screen-lock PIN (grokbot password locked, PIN marker removed)"
     if [[ ${#entries[@]} -eq 0 ]]; then
         echo "지울 항목이 없습니다."
     fi
@@ -152,5 +154,17 @@ for entry in "${entries[@]}"; do
     fi
 done
 
+# The PIN is the kiosk account's unix password. Clear it too, or the next
+# owner cannot set a PIN (the helper asks for the current one) and the
+# previous owner can still unlock (security review #5). The account goes
+# back to its install state: password locked, no PIN marker, no tally.
+lockdir="${ROOT}/var/lib/grokbot"
+rm -f -- "$lockdir/lock-pin/grokbot" "$lockdir/lock-pin/.fail-grokbot" "$lockdir/faillock/grokbot"
+if [[ -z "$ROOT" ]]; then
+    usermod -p '!' grokbot
+    echo "화면 잠금 PIN을 지웠습니다. / Screen-lock PIN cleared."
+else
+    echo "test mode (GROKBOT_RESET_ROOT): grokbot 비밀번호는 건드리지 않았습니다."
+fi
 echo "grokbot 홈의 내용을 지웠습니다. 재부팅은 하지 않았습니다."
 exit 0

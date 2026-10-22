@@ -1,0 +1,14 @@
+[Unit]
+Description=Grok Bot OS post-update health check (rolls back a bad update)
+Documentation=https://github.com/head77x/grokbotos/blob/main/docs/OS_UPDATES.md
+After=graphical.target
+# Off with grokbot.health=off on the kernel command line, or
+# enabled=false in /etc/grokbot/health.conf.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/lib/grokbot/grokbot_health.py
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=graphical.target

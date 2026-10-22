@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>파일</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="files.css">
+</head>
+<body>
+<header>
+  <img src="icon.svg" alt="" width="30" height="30">
+  <h1 data-t="title">파일</h1>
+  <nav id="crumbs"></nav>
+  <span class="grow"></span>
+  <span class="pill" id="perm"></span>
+  <button type="button" id="lang">English</button>
+</header>
+<div class="bar" id="tools">
+  <button type="button" id="up" data-t="up">위로</button>
+  <button type="button" id="mkdir" data-t="mkdir">새 폴더</button>
+  <button type="button" id="newfile" data-t="newfile">새 텍스트 파일</button>
+  <span class="grow"></span>
+  <input type="search" id="q" data-ph="filter" placeholder="이 폴더에서 찾기">
+</div>
+<div id="wrap">
+  <main id="main"></main>
+  <section id="view" class="hidden">
+    <div class="bar"><b id="vname"></b><span class="grow"></span>
+      <button type="button" id="save" class="primary hidden" data-t="save">저장</button>
+      <button type="button" id="close" data-t="close">닫기</button></div>
+    <div id="vbody"></div>
+  </section>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

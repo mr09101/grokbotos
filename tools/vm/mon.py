@@ -38,11 +38,27 @@ def cmd(c, timeout=5):
 
 
 def shot(name):
-    ppm = os.path.join(DIR, 'shot.ppm')
-    cmd('screendump ' + ppm); time.sleep(1)
+    """GBVM_OUTPUTS=N (vm.sh adds GPUs vga1..): each screen is dumped, side by side."""
     from PIL import Image
+    heads = int(os.environ.get('GBVM_OUTPUTS', '1') or 1)
+    imgs = []
+    for i in range(heads):
+        ppm = os.path.join(DIR, 'shot%d.ppm' % i)
+        if os.path.exists(ppm):
+            os.remove(ppm)
+        cmd('screendump ' + ppm + (' vga%d' % i if heads > 1 else '')); time.sleep(1)
+        if os.path.exists(ppm):
+            imgs.append(Image.open(ppm).convert('RGB'))
     out = os.path.join(DIR, 'shots', name)
-    Image.open(ppm).convert('RGB').save(out)
+    if len(imgs) == 1:
+        imgs[0].save(out)
+    else:
+        w = sum(im.width for im in imgs) + 8 * (len(imgs) - 1)
+        canvas = Image.new('RGB', (w, max(im.height for im in imgs)), (255, 0, 255))
+        x = 0
+        for im in imgs:
+            canvas.paste(im, (x, 0)); x += im.width + 8
+        canvas.save(out)
     print('saved', out)
 
 

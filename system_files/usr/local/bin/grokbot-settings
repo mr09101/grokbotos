@@ -1,0 +1,83 @@
+#!/bin/bash
+# Open the Settings web app: grokbot-settings [update|wifi|sound|display|notifications|lock|keyboard|permissions|audit]
+# The app is static files served by grokbotd on its own origin
+# (http://settings.app.localhost:7311) and talks only to the public OS API.
+# It is shown in a chromeless Firefox window with its own profile and
+# app_id grokbot-settings: userChrome.css hides the tab strip and address
+# bar. Not --kiosk: kiosk mode goes fullscreen and covers the docks
+# (seen in the VM); a normal tiled window keeps them visible.
+# One instance: a second call focuses the open window.
+set -euo pipefail
+page=${1:-}
+if [[ -n $page && ! $page =~ ^[a-z]+$ ]]; then
+    echo "usage: grokbot-settings [page]" >&2
+    exit 2
+fi
+port=${GROKBOT_API_PORT:-7311}
+url="http://settings.app.localhost:${port}/${page:+#$page}"
+if [[ ${GROKBOT_SETTINGS_PRINT:-} == 1 ]]; then
+    echo "$url"
+    exit 0
+fi
+if swaymsg -q '[app_id="grokbot-settings"] focus' 2>/dev/null; then
+    exit 0
+fi
+# Single-instance lock held until the window maps. A second launch while the first window is still starting waits
+# for it to map and focuses it instead of starting another Firefox.
+lockdir="${XDG_RUNTIME_DIR:-/tmp}"
+exec 9>"$lockdir/grokbot-settings.lock"
+if ! flock -n 9; then
+    for _ in $(seq 1 40); do
+        swaymsg -q '[app_id="grokbot-settings"] focus' 2>/dev/null && exit 0
+        sleep 0.25
+    done
+    exit 0
+fi
+profile="${HOME}/.local/share/grokbot/settings-profile"
+mkdir -p "$profile"
+mkdir -p "$profile/chrome"
+cat >"$profile/chrome/userChrome.css" <<'CSS'
+#TabsToolbar, #nav-bar, #PersonalToolbar, #titlebar, #sidebar-box { visibility: collapse !important; }
+CSS
+# Rewritten on every launch so new prefs reach existing profiles.
+# No first-run pages, telemetry, password saving or session restore.
+cat >"$profile/user.js" <<'JS'
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("startup.homepage_welcome_url", "");
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
+user_pref("signon.rememberSignons", false);
+user_pref("browser.sessionstore.resume_from_crash", false);
+user_pref("browser.translations.automaticallyPopup", false);
+user_pref("intl.accept_languages", "ko-KR, ko, en-US, en");
+user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
+user_pref("browser.tabs.inTitlebar", 0);
+// Service worker (offline shell) needs a secure context; the host is loopback.
+user_pref("dom.serviceWorkers.enabled", true);
+user_pref("dom.securecontext.allowlist", "settings.app.localhost");
+user_pref("privacy.clearOnShutdown.offlineApps", false);
+JS
+# One window: a second firefox on the same profile only shows "already running".
+if command -v swaymsg >/dev/null && swaymsg -t get_tree 2>/dev/null | grep -q '"app_id": "grokbot-settings"'; then
+    swaymsg '[app_id="grokbot-settings"] focus' >/dev/null 2>&1 && exit 0
+fi
+# Firefox already running on this profile but its window not mapped yet.
+if pgrep -f -- "--profile $profile" >/dev/null 2>&1; then
+    exit 0
+fi
+# grokbot-run hands the command to sway and returns at once, so keep the
+# lock until the window maps (max 10 s) to cover a quick second launch.
+# System web apps must show the per-origin token once (grokbotd/apptoken.py):
+# the server turns it into an HttpOnly cookie and redirects to the clean URL.
+gb_token() {
+    PYTHONPATH=${GROKBOT_LIB:-/usr/lib/grokbot} python3 -m grokbotd.apptoken "$1"
+}
+origin="http://settings.app.localhost:${port}"
+launch_url="${origin}/?gbt=$(gb_token "$origin")${page:+#$page}"
+/usr/local/bin/grokbot-run firefox --new-instance --no-remote --profile "$profile" \
+    --name grokbot-settings --class grokbot-settings "$launch_url"
+for _ in $(seq 1 40); do
+    swaymsg -t get_tree 2>/dev/null | grep -q '"app_id": "grokbot-settings"' && exit 0
+    sleep 0.25
+done

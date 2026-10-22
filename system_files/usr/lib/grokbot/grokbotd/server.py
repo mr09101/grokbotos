@@ -9,9 +9,12 @@ import struct
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import VERSION, audit, paths, policy
+from urllib.parse import parse_qsl, urlencode
+
+from . import apptoken, peer, webapps, VERSION, audit, paths, policy
 
 MAX_BODY = 64 * 1024
+_APP_ORIGIN = re.compile(r"http://[a-z0-9][a-z0-9-]*\.app\.localhost(:\d+)?")
 
 
 def _host_ok(host, port):
@@ -34,7 +37,7 @@ class UnixHandler(socketserver.StreamRequestHandler):
             audit.record(transport="unix", principal="local:uid=%d" % uid, decision="deny",
                          error="foreign_uid", pid=pid)
             return
-        principal = "local:uid=%d" % uid
+        principal, who = peer.identify(pid, uid)
         while True:
             line = self.rfile.readline(MAX_BODY + 1)
             if not line:
@@ -46,7 +49,7 @@ class UnixHandler(socketserver.StreamRequestHandler):
                     req = json.loads(line)
                 except ValueError:
                     req = None
-                resp = self.server.dispatcher.handle(req, principal, "unix")
+                resp = self.server.dispatcher.handle(req, principal, "unix", peer=who)
             self.wfile.write((json.dumps(resp, ensure_ascii=False) + "\n").encode("utf-8"))
             self.wfile.flush()
 
@@ -58,6 +61,10 @@ class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
 class HttpHandler(BaseHTTPRequestHandler):
     server_version = "grokbotd/" + VERSION
     sys_version = ""
+    # Every connection holds a thread. Without a socket timeout, a web page
+    # or local process that opens connections and never finishes a request
+    # keeps those threads forever. A timed-out request is just closed.
+    timeout = 10
 
     def log_message(self, fmt, *args):
         pass  # the audit log records RPC calls; access logs would leak titles
@@ -75,18 +82,78 @@ class HttpHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_file(self, full):
+        with open(full, "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", WEBAPP_TYPES[os.path.splitext(full)[1].lower()])
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        self.wfile.write(data)
+
     def _guard(self):
+        uid, inode = policy.tcp_peer(self.client_address[1], self.server.server_address[1])
+        if uid != os.getuid():
+            audit.record(transport="http", principal="http:uid=%s" % uid, decision="deny",
+                         error="foreign_uid")
+            self._send(403, {"error": "forbidden"})
+            return None
         if not _host_ok(self.headers.get("Host"), self.server.server_address[1]):
             audit.record(transport="http", principal="http:bad-host", decision="deny",
                          error="bad_host", host=self.headers.get("Host"))
             self._send(403, {"error": "forbidden host"})
             return None
+        if not self.path.startswith("/v1/"):
+            return ("http:static", None)  # web app files: no principal needed
         origin = self.headers.get("Origin")
+        if origin is None and self.headers.get("Sec-Fetch-Site") == "same-origin" and \
+                webapp_file(self.headers.get("Host"), "/index.html"):
+            # Browsers may omit Origin on same-origin requests; Sec-Fetch-*
+            # cannot be set by page scripts.
+            origin = "http://" + self.headers.get("Host").lower()
         if origin is None:
             return ("http:no-origin", None)
         if not _origin_ok(origin):
             return ("http:bad-origin", None)
+        # Origin only means something when a browser sent it (docs/OS_API.md).
+        if not policy.peer_is_browser(inode):
+            audit.record(transport="http", principal="http:no-origin", decision="downgrade",
+                         error="origin_untrusted_peer", origin=origin)
+            return ("http:no-origin", None)
+        if _APP_ORIGIN.fullmatch(origin.lower()) and not apptoken.valid(
+                origin, apptoken.cookie_value(self.headers.get("Cookie"))):
+            audit.record(transport="http", principal="http:no-origin", decision="downgrade",
+                         error="app_token_missing", origin=origin)
+            return ("http:no-origin", None)
         return ("origin:" + origin, origin if policy.origin_known(origin) else None)
+
+    def _token_redirect(self):
+        """<start_url>?gbt=<token> from a launcher: set the app cookie and
+        redirect to the same URL without the token."""
+        path, _, query = self.path.partition("?")
+        q = parse_qsl(query, keep_blank_values=True)
+        tok = [v for k, v in q if k == apptoken.PARAM]
+        if not tok:
+            return False
+        origin = "http://" + self.headers.get("Host").lower()
+        rest = [(k, v) for k, v in q if k != apptoken.PARAM]
+        loc = path + ("?" + urlencode(rest) if rest else "")
+        self.send_response(303)
+        if apptoken.valid(origin, tok[0]):
+            self.send_header("Set-Cookie", "%s=%s; Path=/; HttpOnly; SameSite=Strict" % (apptoken.COOKIE, tok[0]))
+        else:
+            audit.record(transport="http", principal="origin:" + origin, decision="deny", error="app_token_bad")
+        self.send_header("Location", loc)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        return True
 
     def do_OPTIONS(self):
         g = self._guard()
@@ -114,6 +181,10 @@ class HttpHandler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True, "service": "grokbotd", "version": VERSION}, cors)
         elif self.path == "/v1/schema":
             self._send(200, self.server.dispatcher.schema, cors)
+        elif not self.path.startswith("/v1/") and webapp_file(self.headers.get("Host"), self.path):
+            if self._token_redirect():
+                return
+            self._send_file(webapp_file(self.headers.get("Host"), self.path))
         else:
             self._send(404, {"error": "not found"}, cors)
 
@@ -147,6 +218,38 @@ class HttpHandler(BaseHTTPRequestHandler):
         if "error" in resp and resp["error"]["code"] == -32001:
             code = 403
         self._send(code, resp, cors)
+
+
+WEBAPP_TYPES = webapps.TYPES
+# System web apps are static files from the read-only image, served on
+# their own origin http://<id>.app.localhost:<port>. They reach the OS only
+# through /v1/rpc on that origin, with that origin's grants.
+CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; "
+       "media-src 'self' blob:; connect-src 'self'; font-src 'self'; manifest-src 'self'; "
+       "worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+def webapp_file(host, path):
+    """Absolute file for GET path on host, or None. No traversal, no
+    dotfiles, no symlinks out of the app directory."""
+    m = re.fullmatch(r"([a-z0-9][a-z0-9-]*)\.app\.localhost:\d+", (host or "").lower())
+    if not m:
+        return None
+    root = webapps.app_root(m.group(1))
+    if root is None:
+        return None
+    rel = path.split("?", 1)[0].split("#", 1)[0]
+    if rel.endswith("/"):
+        rel += "index.html"
+    parts = [x for x in rel.split("/") if x]
+    if any(x.startswith(".") or "\\" in x for x in parts):
+        return None
+    full = os.path.realpath(os.path.join(root, *parts))
+    if not full.startswith(root + os.sep) or not os.path.isfile(full):
+        return None
+    if os.path.splitext(full)[1].lower() not in WEBAPP_TYPES:
+        return None
+    return full
 
 
 class HttpServer(ThreadingHTTPServer):

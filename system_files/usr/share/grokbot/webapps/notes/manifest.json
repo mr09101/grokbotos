@@ -1,0 +1,17 @@
+{
+  "name": "Notes",
+  "short_name": "Notes",
+  "description": "Notes kept only on this computer, works offline",
+  "start_url": "/",
+  "display": "standalone",
+  "lang": "ko",
+  "background_color": "#0f0f12",
+  "theme_color": "#0f0f12",
+  "version": "1.0.0",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "grokbot": {
+    "id": "notes",
+    "name_ko": "메모",
+    "scopes": []
+  }
+}

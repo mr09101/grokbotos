@@ -1,0 +1,8 @@
+# Grok Bot OS images are signed with cosign in CI (build.yml); the
+# signatures are OCI attachments next to the image on GHCR. policy.json
+# requires them for ghcr.io/head77x/grokbotos and -arm64 (security review #2).
+docker:
+  ghcr.io/head77x/grokbotos:
+    use-sigstore-attachments: true
+  ghcr.io/head77x/grokbotos-arm64:
+    use-sigstore-attachments: true

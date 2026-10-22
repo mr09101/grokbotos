@@ -1,0 +1,17 @@
+{
+  "name": "Media Player",
+  "short_name": "Media Player",
+  "description": "Play local music and video, with the keyboard media keys",
+  "start_url": "/",
+  "display": "standalone",
+  "lang": "ko",
+  "background_color": "#0f0f12",
+  "theme_color": "#0f0f12",
+  "version": "1.0.0",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "grokbot": {
+    "id": "player",
+    "name_ko": "미디어 플레이어",
+    "scopes": ["mediakeys"]
+  }
+}

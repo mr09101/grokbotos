@@ -308,7 +308,6 @@ manual/                               사용자 설명서 / end-user manual
 agents/skills/                        작업 절차 / task procedures (AGENTS.md)
 tools/vm/                             VM 테스트 도구 (vm.sh, mkdisk.sh, mon.py, qmp.py)
 tests/
-legacy/orchestrator/                  예전 OAIS(AI-OS) 오케스트레이터 코드. 이미지에 없음, 참고용
 ```
 
 ## 이름을 바꾸지 않은 것 / Names kept on purpose

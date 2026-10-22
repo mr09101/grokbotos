@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=미디어 플레이어
+Name[en]=Media Player
+Comment=이 컴퓨터의 음악과 동영상 재생, 미디어 키 지원
+Comment[en]=Play local music and video, with the keyboard media keys
+Exec=/usr/local/bin/grokbot-webapp player
+Icon=/usr/share/grokbot/webapps/player/icon.svg
+Terminal=false
+Categories=AudioVideo;Player;
+StartupWMClass=grokbot-webapp-player
+X-GrokBot-WebApp=player

@@ -3,6 +3,7 @@
 Runs the real daemon in a temporary XDG tree with a fake sway IPC socket.
 """
 import json
+import re
 import os
 import socket
 import socketserver
@@ -46,6 +47,25 @@ class FakeSway(socketserver.StreamRequestHandler):
         self.wfile.write(b"i3-ipc" + struct.pack("=II", len(body), t) + body)
 
 
+FAKE_TOOLS = {
+    # Answer comes from $HOME/consent-answer (default deny); the request is logged.
+    "fake-consent": 'cat >>"$HOME/consent.log"; echo >>"$HOME/consent.log"; '
+                    '[[ -f $HOME/consent-delay ]] && sleep 1; cat "$HOME/consent-answer" 2>/dev/null || echo deny',
+    "fake-capture": 'mkdir -p "$HOME/shots"; f="$HOME/shots/screenshot-test.png"; '
+                    'printf PNG >"$f"; echo "$f"',
+    "systemctl": "exit 0",
+    "wpctl": 'if [[ $1 == get-volume ]]; then echo "Volume: 0.30"; fi',
+    "brightnessctl": "exit 0",
+    "makoctl": "exit 0",
+    "fcitx5-remote": "exit 0",
+    "pkill": "exit 0",
+    "notify-send": "exit 0",
+    "nmcli": 'case "$*" in *"wifi list"*) printf "*:Home\\:Net:80:WPA2:wlan0\\n:Cafe:40::wlan0\\n:Cafe:60::wlan0\\n";; '
+             '*"passwd-file"*) for a; do [[ -f $a ]] && cat "$a" >>"$HOME/pwfile.seen"; done;; '
+             '*"-f DEVICE,TYPE,STATE"*) printf "wlan0:wifi:connected\\neth0:ethernet:unavailable\\n";; esac',
+}
+
+
 def free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -55,6 +75,7 @@ def free_port():
 
 
 class Base(unittest.TestCase):
+    trust_peer = True
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
@@ -72,7 +93,24 @@ class Base(unittest.TestCase):
             "GROKBOT_DOCK_SYS_CONF": os.path.join(SF, "etc", "grokbot", "dock.conf"),
             "GROKBOT_DESKTOP_SYS_CONF": os.path.join(SF, "etc", "grokbot", "desktop.conf"),
             "GROKBOT_API_PORT": str(cls.port),
+            "GROKBOT_WEBAPPS_DIR": os.path.join(SF, "usr", "share", "grokbot", "webapps"),
+            "GROKBOT_UPDATE_RUN": os.path.join(t, "run-update"),
+            "GROKBOT_HEALTH_DIR": os.path.join(t, "health"),
+            # urllib stands in for the browser; OriginPeerTests turns this off.
+            "GROKBOT_TRUST_ANY_ORIGIN_PEER": "1" if cls.trust_peer else "0",
         })
+        # Fake tools: the daemon must never touch the real machine in tests
+        # (systemctl suspend, nmcli, wpctl ...). Each logs its argv.
+        fb = os.path.join(t, "fakebin")
+        os.makedirs(fb)
+        for tool, body in FAKE_TOOLS.items():
+            with open(os.path.join(fb, tool), "w") as f:
+                f.write("#!/bin/bash\necho \"%s $*\" >>\"$HOME/tools.log\"\n%s\n" % (tool, body))
+            os.chmod(os.path.join(fb, tool), 0o755)
+        env["PATH"] = fb + ":" + env.get("PATH", "")
+        env["GROKBOT_CONSENT_CMD"] = os.path.join(fb, "fake-consent")
+        env["GROKBOT_CAPTURE_CMD"] = os.path.join(fb, "fake-capture")
+        env["GROKBOT_API_GRANTS"] = os.path.join(t, "cfg", "grokbot", "api-grants.json")
         cls.env = env
         os.makedirs(env["XDG_RUNTIME_DIR"], mode=0o700)
         # user dock override, an installed app and a launcher
@@ -132,6 +170,10 @@ class Base(unittest.TestCase):
         if body is not None:
             h["Content-Type"] = "application/json"
         h.update(headers or {})
+        o = h.get("Origin") or ""
+        if re.fullmatch(r"http://[a-z0-9-]+\.app\.localhost(:\d+)?", o) and "Cookie" not in h \
+                and not getattr(self, "no_app_cookie", False):
+            h["Cookie"] = "gbt=" + self.app_token(o)
         req = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path),
                                      data=None if body is None else json.dumps(body).encode(),
                                      headers=h, method=method)
@@ -142,9 +184,21 @@ class Base(unittest.TestCase):
             data = e.read()
             return e.code, dict(e.headers), json.loads(data) if data else None
 
+    def app_token(self, origin):
+        env = dict(os.environ, XDG_STATE_HOME=self.env["XDG_STATE_HOME"])
+        return subprocess.run([sys.executable, "-m", "grokbotd.apptoken", origin], env=dict(env, PYTHONPATH=LIB),
+                              capture_output=True, text=True, check=True).stdout.strip()
+
     def grant(self, origins):
         with open(os.path.join(self.tmp.name, "cfg", "grokbot", "api-permissions.json"), "w") as f:
             json.dump({"origins": origins}, f)
+
+    def audit_rejects(self):
+        p = os.path.join(self.tmp.name, "state", "grokbot", "audit-rejects.jsonl")
+        if not os.path.exists(p):
+            return []
+        with open(p) as f:
+            return [json.loads(x) for x in f]
 
     def audit(self):
         with open(os.path.join(self.tmp.name, "state", "grokbot", "audit.jsonl")) as f:
@@ -153,16 +207,29 @@ class Base(unittest.TestCase):
 
 class SchemaTests(unittest.TestCase):
     def test_every_method_has_backend_and_known_capability(self):
-        from grokbotd import backends, schema
+        from grokbotd import backends, perms, rpc, schema
         doc = schema.load(SCHEMA)
         caps = doc["x-capabilities"]
         for name, spec in doc["methods"].items():
             self.assertIn("description", spec, name)
             self.assertEqual(spec["params"]["type"], "object", name)
-            if name != "api.methods":
-                self.assertIn(name, backends.METHODS)
+            self.assertIn(spec.get("access"), ("read", "write"), name)
+            if name not in rpc.SPECIAL:
+                self.assertTrue(name in rpc.METHODS or name in rpc.CTX_METHODS, name)
+            if spec["capability"] is not None:
                 self.assertIn(spec["capability"], caps, name)
-        self.assertEqual(set(backends.METHODS), set(doc["methods"]) - {"api.methods"})
+            if spec.get("scope") is not None:
+                self.assertIn(spec["scope"], perms.SCOPES, name)
+                self.assertIn(spec["scope"], doc["x-scopes"], name)
+            self.assertEqual(len(spec.get("x-title", [])), 2, name)
+        self.assertEqual(set(rpc.METHODS) | set(rpc.CTX_METHODS) | rpc.SPECIAL, set(doc["methods"]))
+        self.assertEqual(set(backends.METHODS) & set(rpc.CTX_METHODS), set())
+
+    def test_http_connections_time_out(self):
+        # An idle or half-sent request must not hold a server thread forever.
+        from grokbotd import server
+        self.assertIsNotNone(server.HttpHandler.timeout)
+        self.assertLessEqual(server.HttpHandler.timeout, 30)
 
     def test_validate_params(self):
         from grokbotd import schema
@@ -175,20 +242,38 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(schema.ParamError):
             schema.validate_params(spec, [])
 
-    def test_no_write_methods_in_phase1(self):
+    def test_read_methods_have_read_verbs(self):
         from grokbotd import schema
-        for name in schema.load(SCHEMA)["methods"]:
-            verb = name.split(".")[1]
-            # "brightness" is a read (display.brightness), not a setter.
-            self.assertIn(verb, ("methods", "info", "list", "get", "status", "brightness"), name)
+        for name, spec in schema.load(SCHEMA)["methods"].items():
+            verb = name.split(".")[-1]
+            if spec["access"] == "read":
+                # "brightness" is a read (display.brightness), not a setter.
+                self.assertIn(verb, ("methods", "info", "list", "get", "status", "brightness", "whoami", "resources",
+                                     "stat", "read", "wait"), name)
+            else:
+                self.assertNotIn(verb, ("list", "get", "status", "info"), name)
+
+    def test_validate_ranges(self):
+        from grokbotd import schema
+        m = schema.load(SCHEMA)["methods"]
+        for bad in ({"percent": 0}, {"percent": 101}, {"percent": True}, {}):
+            with self.assertRaises(schema.ParamError):
+                schema.validate_params(m["display.set_brightness"], bad)
+        with self.assertRaises(schema.ParamError):
+            schema.validate_params(m["power.action"], {"action": "rm -rf"})
+        with self.assertRaises(schema.ParamError):
+            schema.validate_params(m["network.wifi.connect"], {"ssid": ""})
+        with self.assertRaises(schema.ParamError):
+            schema.validate_params(m["network.wifi.connect"], {"ssid": "x" * 33})
 
 
 class DaemonTests(Base):
     def test_unix_all_methods(self):
         with open(SCHEMA) as f:
-            names = list(json.load(f)["methods"])
+            names = [n for n, s in json.load(f)["methods"].items()
+                     if s.get("access") == "read" and not s["params"].get("required")]
         for m in names:
-            r = self.rpc_unix(m)
+            r = self.rpc_unix(m, {"timeout": 0} if m == "media.keys.wait" else None)
             self.assertIn("result", r, (m, r))
 
     def test_socket_permissions(self):
@@ -330,7 +415,11 @@ class DaemonTests(Base):
             expected = {m.replace(".", "_") for m in json.load(f)["methods"]} - {"api_methods"}
         self.assertEqual(names, expected)
         self.assertTrue({"system_info", "windows_list", "power_status"} <= names)
-        self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in r[2]["result"]["tools"]))
+        ro = {t["name"]: t["annotations"]["readOnlyHint"] for t in r[2]["result"]["tools"]}
+        self.assertTrue(ro["system_info"])
+        self.assertFalse(ro["audio_set"])
+        self.assertTrue([t for t in r[2]["result"]["tools"] if t["name"] == "power_action"][0]
+                        ["annotations"]["destructiveHint"])
         self.assertEqual(len(r[3]["result"]["structuredContent"]["workspaces"]), 2)
         self.assertTrue(r[4]["result"]["isError"])
         self.assertEqual(r[5]["error"]["code"], -32602)

@@ -1,0 +1,17 @@
+{
+  "name": "Files",
+  "short_name": "Files",
+  "description": "Browse, open, rename and trash files in your home folder",
+  "start_url": "/",
+  "display": "standalone",
+  "lang": "ko",
+  "background_color": "#0f0f12",
+  "theme_color": "#0f0f12",
+  "version": "1.0.0",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "grokbot": {
+    "id": "files",
+    "name_ko": "파일",
+    "scopes": ["files", "files-write"]
+  }
+}

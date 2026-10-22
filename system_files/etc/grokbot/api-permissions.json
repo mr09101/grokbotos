@@ -1,4 +1,38 @@
 {
-  "_comment": "grokbotd web-origin grants. Deny by default: an origin not listed here gets nothing. Users add grants in ~/.config/grokbot/api-permissions.json. Capabilities: see /usr/share/grokbot/api/os-api.schema.json x-capabilities. docs/OS_API.md.",
-  "origins": {}
+  "_comment": "grokbotd system defaults, per caller and per OS function (scope). Modes: allow | ask | deny. No blanket grants: '*' and app-wide grants are ignored. camera, microphone and power always ask, whatever is written here. Origins not listed get nothing (deny). Users change grants with the Settings app, 'grokbot-os grant/revoke' or the consent prompt; those go to ~/.config/grokbot/api-grants.json and win over this file. 'local' is the session user's own processes on the unix socket (CLI, MCP, Grok Bot): reads are always allowed, writes use these modes (missing scope = ask). See docs/OS_API.md and SECURITY.md. The only shipped origin is the Settings app (/usr/share/grokbot/webapps/settings, served by grokbotd from the read-only image on its own origin); it gets the scopes its pages need and nothing else (no camera, microphone, screen, files, location or windows; 'apps' lets it list and open apps, and install/remove always ask). Installed web apps, including the shipped System monitor (sysmon.app.localhost), get nothing here: they ask per scope with permissions.request.",
+  "local": {
+    "display": "allow",
+    "audio": "allow",
+    "notifications": "allow",
+    "input": "allow",
+    "lock": "allow",
+    "network": "ask",
+    "screen": "ask",
+    "files": "ask",
+    "files-write": "ask",
+    "location": "ask",
+    "camera": "ask",
+    "microphone": "ask",
+    "power": "ask",
+    "permissions": "allow",
+    "apps": "allow",
+    "mediakeys": "allow",
+    "updates": "ask"
+  },
+  "origins": {
+    "http://settings.app.localhost:7311": {
+      "system": "allow",
+      "network": "allow",
+      "audio": "allow",
+      "display": "allow",
+      "notifications": "allow",
+      "lock": "allow",
+      "input": "allow",
+      "permissions": "allow",
+      "audit": "allow",
+      "power": "ask",
+      "apps": "allow",
+      "updates": "ask"
+    }
+  }
 }

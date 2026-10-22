@@ -26,9 +26,15 @@ accel=${GBVM_ACCEL:-}
 if [[ -z $accel ]]; then
     if [[ -w /dev/kvm ]]; then accel=kvm; else accel=tcg,thread=multi,tb-size=1024; fi
 fi
+# GBVM_OUTPUTS=2 (EXPERIMENTAL, does not work yet): a second virtio-gpu card.
+# With -display none its head stays "not active" and the sway session does not
+# come up on vga0, so multi-output is not VM-verified (see PR #36).
+# (Extra heads on one card stay "not active" without a display UI.)
+extra_gpu=()
+[[ ${GBVM_OUTPUTS:-1} -ge 2 ]] && extra_gpu=(-device virtio-gpu-pci,id=vga1,xres=1920,yres=1080)
 exec qemu-system-x86_64 -accel "$accel" -m "$GBVM_MEM" -smp "$GBVM_SMP" -cpu max "${fw[@]}" \
     -drive "file=$disk,if=virtio,format=qcow2" \
-    -device virtio-vga,xres=1280,yres=800 -display none \
+    -device virtio-vga,id=vga0,xres=1280,yres=800 "${extra_gpu[@]}" -display none \
     -netdev user,id=n0 -device virtio-net-pci,netdev=n0 \
     -device qemu-xhci -device usb-kbd -device usb-tablet \
     -audiodev none,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0 \

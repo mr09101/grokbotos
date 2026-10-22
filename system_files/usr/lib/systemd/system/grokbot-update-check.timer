@@ -1,0 +1,12 @@
+[Unit]
+Description=Check for Grok Bot OS updates (never installs or reboots)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+RandomizedDelaySec=20min
+Persistent=true
+Unit=grokbot-update@check.service
+
+[Install]
+WantedBy=timers.target

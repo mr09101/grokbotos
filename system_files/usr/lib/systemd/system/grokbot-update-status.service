@@ -1,0 +1,10 @@
+[Unit]
+Description=Record Grok Bot OS deployments (booted / staged / rollback) for the session
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/lib/grokbot/grokbot_update.py status
+
+[Install]
+WantedBy=multi-user.target

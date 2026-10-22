@@ -1,0 +1,4 @@
+#!/bin/bash
+# Native consent prompt for grokbotd (stdin: request JSON, stdout: once|always|deny).
+set -euo pipefail
+exec /usr/bin/python3 "${GROKBOT_LIB:-/usr/lib/grokbot}/grokbot_consent.py" "$@"

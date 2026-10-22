@@ -1,0 +1,3 @@
+# Never ship local bytecode caches in the image (build.sh compiles what it needs).
+**/__pycache__
+**/*.pyc

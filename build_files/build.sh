@@ -127,7 +127,16 @@ visudo -cf /etc/sudoers.d/grokbot-lock
 # Grok Bot OS API daemon (docs/OS_API.md). A systemd user service, so it
 # runs as the session user, never root. --global enables it for every user.
 systemctl --global enable grokbotd.service
-python3 -m py_compile /usr/lib/grokbot/grokbotd/*.py /usr/lib/grokbot/grokbot_os_cli.py
+
+# OS updates (docs/OS_UPDATES.md): the user decides when to install and
+# restart. Fedora's bootc-fetch-apply-updates.timer would download and
+# reboot on its own; replace it with a check-only timer, deployment status
+# at boot, and the post-update health check that rolls back a bad image.
+systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service
+systemctl enable grokbot-update-check.timer grokbot-update-status.service grokbot-health-check.service
+python3 -m py_compile /usr/lib/grokbot/grokbot_update.py /usr/lib/grokbot/grokbot_health.py
+python3 -m py_compile /usr/lib/grokbot/grokbotd/*.py /usr/lib/grokbot/grokbot_os_cli.py /usr/lib/grokbot/grokbot_consent.py
+bash -n /usr/local/bin/grokbot-webapp
 
 # Default browser for anything that is not the kiosk window itself.
 # grokbot-open-browser forces a separate Firefox profile and --new-window.

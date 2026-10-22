@@ -1,10 +1,11 @@
 """grokbotd entry point: python3 -m grokbotd [--no-http]"""
 import argparse
+import os
 import signal
 import sys
 import threading
 
-from . import VERSION, audit, paths, rpc, schema, server
+from . import VERSION, audit, paths, rpc, schema, server, updates
 
 
 def main(argv=None):
@@ -19,6 +20,8 @@ def main(argv=None):
     print("grokbotd %s: unix %s%s" % (VERSION, paths.socket_path(),
           "" if hs is None else ", http 127.0.0.1:%d" % paths.http_port()), flush=True)
     stop = threading.Event()
+    if os.environ.get("GROKBOT_UPDATE_NOTIFY", "1") != "0":
+        updates.watch(stop)
     for s in (signal.SIGTERM, signal.SIGINT):
         signal.signal(s, lambda *_: stop.set())
     stop.wait()

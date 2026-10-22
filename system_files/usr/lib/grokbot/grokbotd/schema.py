@@ -1,10 +1,12 @@
 """Load the API schema and validate call parameters against it.
 
 Only the JSON Schema subset the API file uses is implemented (object
-params with typed properties and additionalProperties). Keeping it in the
+params with typed properties, enum, minimum/maximum,
+minLength/maxLength, pattern and additionalProperties). Keeping it in the
 standard library means the daemon needs nothing beyond python3.
 """
 import json
+import re
 
 from . import paths
 
@@ -50,8 +52,23 @@ def validate_params(spec, params):
     out = dict(params)
     for name, p in props.items():
         if name in out:
-            if not _check_type(out[name], p.get("type")):
+            v = out[name]
+            if not _check_type(v, p.get("type")):
                 raise ParamError("%s must be %s" % (name, p.get("type")))
+            if "enum" in p and v not in p["enum"]:
+                raise ParamError("%s must be one of %s" % (name, ", ".join(map(str, p["enum"]))))
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                if "minimum" in p and v < p["minimum"]:
+                    raise ParamError("%s must be >= %s" % (name, p["minimum"]))
+                if "maximum" in p and v > p["maximum"]:
+                    raise ParamError("%s must be <= %s" % (name, p["maximum"]))
+            if isinstance(v, str):
+                if len(v) < p.get("minLength", 0):
+                    raise ParamError("%s is too short" % name)
+                if "maxLength" in p and len(v) > p["maxLength"]:
+                    raise ParamError("%s is too long" % name)
+                if "pattern" in p and not re.search(p["pattern"], v):
+                    raise ParamError("%s has an invalid format" % name)
         elif "default" in p:
             out[name] = p["default"]
     for name in pschema.get("required", []):

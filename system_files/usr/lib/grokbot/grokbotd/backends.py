@@ -8,6 +8,7 @@ import glob
 import ipaddress
 import json
 import os
+import time
 import platform
 import socket
 import subprocess
@@ -184,10 +185,78 @@ def apps_list(params):
                 installed.append({k: rec.get(k) for k in ("id", "kind", "name")})
         except (OSError, ValueError):
             continue
-    out = {"installed": installed}
+    from . import webapps
+    out = {"installed": installed, "webapps": [webapps.public(a) for a in webapps.all_apps()]}
     if params.get("include_launchers", True):
         out["launchers"] = _desktop_entries()
     return out
+
+
+_cpu_last = {}
+
+
+def _cpu_times():
+    line = (_read(os.path.join(paths.procfs(), "stat"), "") or "").splitlines()
+    out = {}
+    for l in line:
+        if l.startswith("cpu"):
+            f = l.split()
+            vals = [int(x) for x in f[1:9]]
+            idle = vals[3] + vals[4]
+            out[f[0]] = (sum(vals), idle)
+    return out
+
+
+def system_resources(params):
+    """CPU (percent since the previous call, at most 60 s ago), load,
+    memory, swap, disks and network byte counters."""
+    now = time.time()
+    cur = _cpu_times()
+    prev = _cpu_last.get("v")
+    cpu = {"percent": None, "per_cpu": []}
+    if prev and now - _cpu_last.get("t", 0) <= 60:
+        def pct(k):
+            if k not in prev[1] or k not in cur:
+                return None
+            dt, di = cur[k][0] - prev[1][k][0], cur[k][1] - prev[1][k][1]
+            return round(100.0 * (dt - di) / dt, 1) if dt > 0 else 0.0
+        cpu["percent"] = pct("cpu")
+        cpu["per_cpu"] = [pct(k) for k in sorted((k for k in cur if k != "cpu"), key=lambda k: int(k[3:]))]
+    if not prev or now - _cpu_last.get("t", 0) >= 0.5:
+        _cpu_last.update(v=(now, cur), t=now)
+    if prev is None:
+        pass
+    mem = {}
+    for line in (_read(os.path.join(paths.procfs(), "meminfo"), "") or "").splitlines():
+        k, _, v = line.partition(":")
+        if k in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree", "Cached", "Buffers"):
+            mem[k] = int(v.split()[0]) * 1024
+    load = (_read(os.path.join(paths.procfs(), "loadavg"), "0 0 0") or "0 0 0").split()[:3]
+    disks = []
+    seen = set()
+    for mp in ("/", "/var", "/var/home", os.path.expanduser("~")):
+        try:
+            st = os.statvfs(mp)
+        except OSError:
+            continue
+        key = (st.f_blocks, st.f_bfree, st.f_files)
+        if key in seen:
+            continue
+        seen.add(key)
+        disks.append({"mount": mp, "total_bytes": st.f_blocks * st.f_frsize,
+                      "free_bytes": st.f_bavail * st.f_frsize,
+                      "used_bytes": (st.f_blocks - st.f_bfree) * st.f_frsize})
+    net = []
+    for line in (_read(os.path.join(paths.procfs(), "net", "dev"), "") or "").splitlines()[2:]:
+        name, _, rest = line.partition(":")
+        f = rest.split()
+        if len(f) >= 9 and name.strip() != "lo":
+            net.append({"name": name.strip(), "rx_bytes": int(f[0]), "tx_bytes": int(f[8])})
+    return {"time": now, "cpu": cpu, "cpus": os.cpu_count(),
+            "load": [float(x) for x in load],
+            "memory": {"total_bytes": mem.get("MemTotal"), "available_bytes": mem.get("MemAvailable"),
+                       "swap_total_bytes": mem.get("SwapTotal"), "swap_free_bytes": mem.get("SwapFree")},
+            "disks": disks, "network": net}
 
 
 def power_status(params):
@@ -246,6 +315,7 @@ def network_status(params):
 
 METHODS = {
     "system.info": system_info,
+    "system.resources": system_resources,
     "windows.list": windows_list,
     "workspaces.list": workspaces_list,
     "dock.get": dock_get,

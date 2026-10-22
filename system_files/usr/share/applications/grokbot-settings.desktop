@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=설정
+Name[en]=Settings
+Comment=Wi-Fi, sound, display, notifications, lock, keyboard, permissions
+Comment[ko]=Wi-Fi, 소리, 화면, 알림, 잠금, 키보드, 권한
+Exec=/usr/local/bin/grokbot-settings
+Icon=preferences-system
+Categories=Settings;System;
+StartupWMClass=grokbot-settings

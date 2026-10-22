@@ -1,0 +1,9 @@
+# Grok Bot OS: swaylock with an attempt limit (security review #7).
+# After 5 wrong PINs within 15 minutes, unlocking is refused for 5 minutes
+# (even the right PIN). swaylock runs as the kiosk user, so the tally lives
+# in a directory that user owns (tmpfiles.d/grokbot-faillock.conf).
+# lock-setpin.sh resets it when the PIN changes.
+auth     required       pam_faillock.so preauth dir=/var/lib/grokbot/faillock deny=5 fail_interval=900 unlock_time=300
+auth     [success=1 default=bad] pam_unix.so
+auth     [default=die]  pam_faillock.so authfail dir=/var/lib/grokbot/faillock deny=5 fail_interval=900 unlock_time=300
+auth     sufficient     pam_faillock.so authsucc dir=/var/lib/grokbot/faillock deny=5 fail_interval=900 unlock_time=300

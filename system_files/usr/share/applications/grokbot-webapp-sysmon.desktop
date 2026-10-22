@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=시스템 모니터
+Name[en]=System Monitor
+Comment=CPU, 메모리, 디스크, 배터리, 네트워크, API 기록
+Comment[en]=CPU, memory, disk, battery, network and API audit
+Exec=/usr/local/bin/grokbot-webapp sysmon
+Icon=/usr/share/grokbot/webapps/sysmon/icon.svg
+Terminal=false
+Categories=System;Monitor;
+StartupWMClass=grokbot-webapp-sysmon
+X-GrokBot-WebApp=sysmon

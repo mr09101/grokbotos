@@ -16,8 +16,8 @@ grokbot-dock-config reset
 ```
 
 ### 상태 영역 / Status area
-독 끝에 Wi-Fi, 볼륨, 배터리, 시계가 보인다. Wi-Fi를 누르면 Wi-Fi 설정, 볼륨을 누르면 음소거, 볼륨 위에서 스크롤하면 조절. 마우스를 올리면 자세히 보인다.
-The end of the dock shows Wi-Fi, volume, battery and the clock. Click Wi-Fi for Wi-Fi setup, click volume to mute, scroll over it to adjust. Hover for details.
+독 끝에 Wi-Fi, 볼륨, 배터리, 시계가 보인다. Wi-Fi를 누르면 Wi-Fi 설정, 볼륨을 누르면 음소거, 볼륨 위에서 스크롤하면 조절. 마우스를 올리면 자세히 보인다. 배터리가 충전 중이면 "충전 중", 전원에 연결돼 있는데 방전 중이 아니면 "전원 연결됨", 가득 차면 "전원 연결됨 (가득 참)", 방전 중이면 잔량 퍼센트다. 아이콘만 있는 독에서도 그 문구는 배터리에 마우스를 올리면 보인다.
+The end of the dock shows Wi-Fi, volume, battery and the clock. Click Wi-Fi for Wi-Fi setup, click volume to mute, scroll over it to adjust. Hover for details. While charging the battery reads "충전 중". Plugged in and not discharging it reads "전원 연결됨", and "전원 연결됨 (가득 참)" when full. While discharging it shows the percent remaining. Icon-only docks show the same words in the battery tooltip.
 
 ## 단축키 / Hotkeys
 

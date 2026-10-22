@@ -2,13 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/head77x/grokbotos/os-api.schema.json",
   "title": "Grok Bot OS API",
-  "version": "1.0.0",
-  "description": "Single source of truth for grokbotd. JSON-RPC 2.0 over the unix socket and POST /v1/rpc, the grokbot-os CLI and the MCP tools are all generated from this file. Phase 1 is read-only.",
+  "version": "2.1.0",
+  "description": "Single source of truth for grokbotd. JSON-RPC 2.0 over the unix socket and POST /v1/rpc, the grokbot-os CLI and the MCP tools are all generated from this file. Every method has a scope (an OS function) and an access level (read or write); permissions are granted per caller per scope with mode allow, ask or deny (docs/OS_API.md, SECURITY.md).",
   "x-capabilities": {
     "system.read": "OS name, version, kernel, hostname, uptime, memory, bootc image",
     "windows.read": "Window titles and app ids of every open window and workspace",
     "desktop.read": "Dock and wallpaper configuration",
-    "apps.read": "Installed apps and launcher entries",
+    "apps.read": "Installed apps, web apps and launcher entries",
+    "apps.write": "Install, remove (always confirmed by the user) and open web apps",
     "power.read": "Battery and AC status",
     "network.read": "Network interfaces, addresses and default route",
     "lock.read": "Screen lock and idle state: whether a PIN is set, locked, idle timeouts",
@@ -16,98 +17,1636 @@
     "display.read": "Display backlight brightness",
     "notifications.read": "Notification app names and summaries (never bodies) and Do Not Disturb state",
     "capture.read": "Screenshot folder, file names and sizes (never image data)",
-    "input.read": "Keyboard input method (fcitx5): configured methods, current method, trigger keys"
+    "input.read": "Keyboard input method (fcitx5): configured methods, current method, trigger keys",
+    "audio.write": "Change output/input volume and mute",
+    "display.write": "Change display backlight brightness",
+    "network.write": "Scan, connect to and disconnect from Wi-Fi",
+    "notifications.write": "Turn Do Not Disturb on or off",
+    "power.write": "Suspend, restart, shut down or lock (always confirmed by the user)",
+    "lock.write": "Change idle screen-off and lock timeouts",
+    "input.write": "Switch the Korean input method on or off",
+    "capture.write": "Take a full-screen screenshot",
+    "camera.use": "Start a camera use session (always confirmed; shows the in-use indicator)",
+    "microphone.use": "Start a microphone use session (always confirmed; shows the in-use indicator)",
+    "privacy.read": "Active camera and microphone sessions (for the in-use indicator)",
+    "permissions.read": "View permission grants of every caller",
+    "permissions.write": "Change or revoke permission grants (granting always asks the user)",
+    "permissions.request": "Ask the user for a scope (shows the consent prompt)",
+    "audit.read": "Read the API audit log",
+    "files.read": "List and read files in the home folder (not hidden ones)",
+    "files.write": "Create, change, move and trash files in the home folder (not hidden ones)",
+    "mediakeys.read": "Receive Play/Pause/Next/Previous media key presses",
+    "mediakeys.write": "Send media key presses to apps",
+    "updates.read": "Booted, staged and rollback OS images, update availability, health-check record",
+    "updates.write": "Check for, install (stage) or roll back an OS update (always confirmed)"
   },
   "methods": {
     "api.methods": {
       "description": "List the methods of this API with their capability.",
       "capability": null,
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object"}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": null,
+      "access": "read",
+      "x-title": [
+        "API 목록",
+        "List API methods"
+      ]
     },
     "system.info": {
       "description": "OS name and version, kernel, hostname, uptime, memory and the booted bootc image.",
       "capability": "system.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["os", "kernel", "hostname", "uptime_s"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "os",
+          "kernel",
+          "hostname",
+          "uptime_s"
+        ]
+      },
+      "scope": "system",
+      "access": "read",
+      "x-title": [
+        "시스템 정보 보기",
+        "Read system information"
+      ]
+    },
+    "system.resources": {
+      "description": "CPU use (percent since the previous call), load average, memory, swap, disk space and network byte counters.",
+      "capability": "system.read",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "cpu",
+          "memory",
+          "disks",
+          "network"
+        ]
+      },
+      "scope": "system",
+      "access": "read",
+      "x-title": [
+        "시스템 자원 보기",
+        "Read system resources"
+      ]
     },
     "windows.list": {
       "description": "Open windows from the sway tree: id, app_id, title, workspace, focused, fullscreen.",
       "capability": "windows.read",
-      "params": {"type": "object", "properties": {"workspace": {"type": "string", "description": "Only windows on this workspace name."}}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["windows"]}
+      "params": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Only windows on this workspace name."
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "windows"
+        ]
+      },
+      "scope": "windows",
+      "access": "read",
+      "x-title": [
+        "열린 창 목록 보기",
+        "List open windows"
+      ]
     },
     "workspaces.list": {
       "description": "Workspaces: name, number, output, focused, visible.",
       "capability": "windows.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["workspaces"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "workspaces"
+        ]
+      },
+      "scope": "windows",
+      "access": "read",
+      "x-title": [
+        "작업 공간 보기",
+        "List workspaces"
+      ]
     },
     "dock.get": {
       "description": "Effective dock configuration (system defaults merged with the user's dock.conf).",
       "capability": "desktop.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["top", "bottom", "left", "right", "icon_size"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "icon_size"
+        ]
+      },
+      "scope": "desktop",
+      "access": "read",
+      "x-title": [
+        "독 설정 보기",
+        "Read dock settings"
+      ]
     },
     "wallpaper.get": {
       "description": "Effective wallpaper configuration: image path, mode and color.",
       "capability": "desktop.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["wallpaper", "mode", "color"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "wallpaper",
+          "mode",
+          "color"
+        ]
+      },
+      "scope": "desktop",
+      "access": "read",
+      "x-title": [
+        "배경화면 설정 보기",
+        "Read wallpaper settings"
+      ]
     },
     "apps.list": {
-      "description": "Apps installed with grokbot-install and the launcher entries visible to the user.",
+      "description": "Apps installed with grokbot-install, web apps (system and user-installed, with origin, requested scopes and icon) and the launcher entries visible to the user.",
       "capability": "apps.read",
-      "params": {"type": "object", "properties": {"include_launchers": {"type": "boolean", "default": true}}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["installed"]}
+      "params": {
+        "type": "object",
+        "properties": {
+          "include_launchers": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "installed"
+        ]
+      },
+      "scope": "apps",
+      "access": "read",
+      "x-title": [
+        "앱 목록 보기",
+        "List apps"
+      ]
+    },
+    "apps.install": {
+      "description": "Install a web app from a local bundle (directory or .zip with manifest.json) or a URL. Always shows the consent prompt with the app's name, origin and requested scopes. Adds a launcher entry (launcher and dock, never the desktop). Grants nothing: the app asks per scope.",
+      "capability": "apps.write",
+      "scope": "apps",
+      "access": "write",
+      "x-title": [
+        "웹 앱 설치",
+        "Install a web app"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,30}$",
+            "maxLength": 31
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "id",
+          "origin"
+        ]
+      }
+    },
+    "apps.uninstall": {
+      "description": "Remove a user-installed web app: launcher, files, and unless keep_data, its browser profile (storage) and grants. Always shows the consent prompt. System apps cannot be removed.",
+      "capability": "apps.write",
+      "scope": "apps",
+      "access": "write",
+      "x-title": [
+        "웹 앱 제거",
+        "Remove a web app"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,30}$",
+            "maxLength": 31
+          },
+          "keep_data": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "id",
+          "removed"
+        ]
+      }
+    },
+    "apps.launch": {
+      "description": "Open a web app in its own app window (separate browser profile, no browser controls) on a new workspace.",
+      "capability": "apps.write",
+      "scope": "apps",
+      "access": "write",
+      "x-title": [
+        "앱 열기",
+        "Open an app"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,30}$",
+            "maxLength": 31
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "id",
+          "launched"
+        ]
+      }
     },
     "power.status": {
       "description": "Batteries (capacity, status) and whether AC power is online.",
       "capability": "power.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["batteries", "on_ac"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "batteries",
+          "on_ac"
+        ]
+      },
+      "scope": "power",
+      "access": "read",
+      "x-title": [
+        "배터리 상태 보기",
+        "Read battery status"
+      ]
     },
     "network.status": {
       "description": "Network interfaces (state, MAC, addresses) and the default route.",
       "capability": "network.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["interfaces"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "interfaces"
+        ]
+      },
+      "scope": "network",
+      "access": "read",
+      "x-title": [
+        "네트워크 상태 보기",
+        "Read network status"
+      ]
     },
     "lock.status": {
       "description": "Screen lock and idle state: PIN set (never the PIN), locked now, swayidle running, screen-off and lock timeouts in seconds.",
       "capability": "lock.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["pin_set", "locked", "idle_running", "screen_off_s", "lock_s"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "pin_set",
+          "locked",
+          "idle_running",
+          "screen_off_s",
+          "lock_s"
+        ]
+      },
+      "scope": "lock",
+      "access": "read",
+      "x-title": [
+        "잠금 상태 보기",
+        "Read lock status"
+      ]
     },
     "audio.status": {
       "description": "Default output and input volume (percent) and mute state from PipeWire (wpctl).",
       "capability": "audio.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["available", "output", "input"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "available",
+          "output",
+          "input"
+        ]
+      },
+      "scope": "audio",
+      "access": "read",
+      "x-title": [
+        "볼륨 보기",
+        "Read volume"
+      ]
     },
     "display.brightness": {
       "description": "Backlight devices with brightness, max_brightness and percent. Empty on desktops and VMs.",
       "capability": "display.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["available", "devices"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "available",
+          "devices"
+        ]
+      },
+      "scope": "display",
+      "access": "read",
+      "x-title": [
+        "밝기 보기",
+        "Read brightness"
+      ]
     },
     "notifications.list": {
       "description": "Visible notifications (id, app, summary, urgency; never the body), whether mako runs and whether Do Not Disturb is on. include_history adds the dismissed ones.",
       "capability": "notifications.read",
-      "params": {"type": "object", "properties": {"include_history": {"type": "boolean", "default": false}}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["daemon_running", "dnd", "notifications"]}
+      "params": {
+        "type": "object",
+        "properties": {
+          "include_history": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "daemon_running",
+          "dnd",
+          "notifications"
+        ]
+      },
+      "scope": "notifications",
+      "access": "read",
+      "x-title": [
+        "알림 목록 보기",
+        "List notifications"
+      ]
     },
     "capture.status": {
       "description": "Screenshot folder, number of PNG files, the newest `limit` (name, size, mtime) and whether grim, slurp and wl-copy are installed. Never returns image data.",
       "capability": "capture.read",
-      "params": {"type": "object", "properties": {"limit": {"type": "integer", "default": 10}}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["dir", "count", "recent", "tools"]}
+      "params": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 10
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "dir",
+          "count",
+          "recent",
+          "tools"
+        ]
+      },
+      "scope": "screen",
+      "access": "read",
+      "x-title": [
+        "스크린샷 목록 보기",
+        "List screenshots"
+      ]
     },
     "input.status": {
       "description": "Input method state: fcitx5 running, current method (e.g. hangul), whether it is active, configured methods, trigger keys and XMODIFIERS. Never keystrokes.",
       "capability": "input.read",
-      "params": {"type": "object", "properties": {}, "additionalProperties": false},
-      "result": {"type": "object", "required": ["framework", "running", "current", "input_methods", "trigger_keys"]}
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "framework",
+          "running",
+          "current",
+          "input_methods",
+          "trigger_keys"
+        ]
+      },
+      "scope": "input",
+      "access": "read",
+      "x-title": [
+        "입력기 상태 보기",
+        "Read input method"
+      ]
+    },
+    "audio.set": {
+      "description": "Set output or input volume and/or mute.",
+      "capability": "audio.write",
+      "scope": "audio",
+      "access": "write",
+      "x-title": [
+        "볼륨 바꾸기",
+        "Change volume"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "output",
+              "input"
+            ],
+            "default": "output"
+          },
+          "volume_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "muted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "display.set_brightness": {
+      "description": "Set backlight brightness in percent (1-100; never fully dark).",
+      "capability": "display.write",
+      "scope": "display",
+      "access": "write",
+      "x-title": [
+        "화면 밝기 바꾸기",
+        "Change brightness"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "percent"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "network.wifi.list": {
+      "description": "Visible Wi-Fi networks (SSID, signal, security, in use) via NetworkManager.",
+      "capability": "network.read",
+      "scope": "network",
+      "access": "read",
+      "x-title": [
+        "Wi-Fi 목록 보기",
+        "List Wi-Fi networks"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "rescan": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "network.wifi.connect": {
+      "description": "Connect to a Wi-Fi network (nmcli). The password is passed to NetworkManager through a 0600 file, never logged or put on a command line.",
+      "capability": "network.write",
+      "scope": "network",
+      "access": "write",
+      "x-title": [
+        "Wi-Fi 연결",
+        "Connect to Wi-Fi"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "ssid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 63,
+            "x-secret": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "ssid"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "network.wifi.disconnect": {
+      "description": "Disconnect a Wi-Fi device (default: the connected one).",
+      "capability": "network.write",
+      "scope": "network",
+      "access": "write",
+      "x-title": [
+        "Wi-Fi 연결 끊기",
+        "Disconnect Wi-Fi"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string",
+            "maxLength": 15
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "notifications.set_dnd": {
+      "description": "Turn Do Not Disturb on or off.",
+      "capability": "notifications.write",
+      "scope": "notifications",
+      "access": "write",
+      "x-title": [
+        "방해 금지 바꾸기",
+        "Change Do Not Disturb"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "enabled"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "power.action": {
+      "description": "Suspend, reboot, power off or lock. Always shows the consent prompt, for every caller.",
+      "capability": "power.write",
+      "scope": "power",
+      "access": "write",
+      "consent": "always",
+      "x-title": [
+        "전원 동작",
+        "Power action"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "suspend",
+              "reboot",
+              "poweroff",
+              "lock"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "action"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "lock.set_idle": {
+      "description": "Set idle timeouts in seconds (0 = off) in ~/.config/grokbot/idle.conf and restart the idle watcher.",
+      "capability": "lock.write",
+      "scope": "lock",
+      "access": "write",
+      "x-title": [
+        "대기 시간 바꾸기",
+        "Change idle timeouts"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "screen_off_s": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400
+          },
+          "lock_s": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "input.set": {
+      "description": "Turn the Korean input method on (active=true) or off (fcitx5-remote).",
+      "capability": "input.write",
+      "scope": "input",
+      "access": "write",
+      "x-title": [
+        "한/영 전환",
+        "Switch Korean input"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "active"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "capture.screenshot": {
+      "description": "Take a full-screen screenshot into the screenshot folder; returns the file name and size, never image data.",
+      "capability": "capture.write",
+      "scope": "screen",
+      "access": "write",
+      "x-title": [
+        "화면 캡처",
+        "Take a screenshot"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "camera.session.start": {
+      "description": "Ask to use the camera. Always prompts; while the session is open the dock shows the camera-in-use indicator. Returns a session id.",
+      "capability": "camera.use",
+      "scope": "camera",
+      "access": "write",
+      "consent": "always",
+      "x-title": [
+        "카메라 사용",
+        "Use the camera"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "maxLength": 120,
+            "default": ""
+          },
+          "duration_s": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 3600,
+            "default": 600
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "microphone.session.start": {
+      "description": "Ask to use the microphone. Always prompts; while the session is open the dock shows the microphone-in-use indicator. Returns a session id.",
+      "capability": "microphone.use",
+      "scope": "microphone",
+      "access": "write",
+      "consent": "always",
+      "x-title": [
+        "마이크 사용",
+        "Use the microphone"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "maxLength": 120,
+            "default": ""
+          },
+          "duration_s": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 3600,
+            "default": 600
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "media.session.stop": {
+      "description": "End a camera or microphone session (the caller's own; the local user may end any).",
+      "capability": null,
+      "scope": null,
+      "access": "write",
+      "x-title": [
+        "카메라/마이크 사용 끝내기",
+        "Stop camera/microphone use"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 32
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "privacy.status": {
+      "description": "Open camera and microphone sessions (who, what, since when) for the in-use indicator.",
+      "capability": "privacy.read",
+      "scope": "permissions",
+      "access": "read",
+      "x-title": [
+        "카메라/마이크 사용 현황",
+        "Camera/microphone in use"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "permissions.list": {
+      "description": "Effective mode (allow/ask/deny) per scope for every known caller, with stored grants.",
+      "capability": "permissions.read",
+      "scope": "permissions",
+      "access": "read",
+      "x-title": [
+        "권한 목록 보기",
+        "List permissions"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "principal": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "permissions.whoami": {
+      "description": "Who the daemon thinks the caller is: the principal grants are bound to. Unix socket callers are identified by the kernel (SO_PEERCRED pid -> systemd unit or executable/script), not by x-client.",
+      "capability": "permissions.read",
+      "scope": "permissions",
+      "access": "read",
+      "x-title": [
+        "내 신원 보기",
+        "Show my identity"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "principal",
+          "local",
+          "storable"
+        ]
+      }
+    },
+    "permissions.set": {
+      "description": "Store a mode for one caller and one scope. Always shows the consent prompt. camera, microphone and power cannot be set to allow.",
+      "capability": "permissions.write",
+      "scope": "permissions",
+      "access": "write",
+      "consent": "always",
+      "x-title": [
+        "권한 바꾸기",
+        "Change a permission"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "principal": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "ask",
+              "deny"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "principal",
+          "scope",
+          "mode"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "permissions.revoke": {
+      "description": "Remove stored grants of a caller (one scope, or all). The caller falls back to the system default.",
+      "capability": "permissions.write",
+      "scope": "permissions",
+      "access": "write",
+      "x-title": [
+        "권한 취소",
+        "Revoke permissions"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "principal": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 32
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "principal"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "permissions.request": {
+      "description": "Ask the user to grant the calling origin one scope. Shows the consent prompt; the answer is stored (always: allow, once: ask, deny: deny). Rate-limited.",
+      "capability": null,
+      "scope": null,
+      "access": "write",
+      "x-title": [
+        "권한 요청",
+        "Request a permission"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "scope"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "audit.list": {
+      "description": "Recent audit log entries, newest last. Filters: principal, decision, method, access.",
+      "capability": "audit.read",
+      "scope": "audit",
+      "access": "read",
+      "x-title": [
+        "감사 기록 보기",
+        "Read the audit log"
+      ],
+      "params": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100
+          },
+          "principal": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "error"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "access": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write"
+            ],
+            "description": "Only reads or only writes (the dock's status polling is reads)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    "files.list": {
+      "description": "List a folder in the home folder (hidden entries are left out and counted).",
+      "capability": "files.read",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files",
+      "access": "read",
+      "x-title": [
+        "홈 폴더의 파일 목록 보기",
+        "List files in your home folder"
+      ]
+    },
+    "files.stat": {
+      "description": "Type, size, mtime and MIME type of one file or folder.",
+      "capability": "files.read",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files",
+      "access": "read",
+      "x-title": [
+        "파일 정보 보기",
+        "Read file details"
+      ]
+    },
+    "files.read": {
+      "description": "Read a file (max 16 MB) as UTF-8 text or base64.",
+      "capability": "files.read",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "base64"
+            ]
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files",
+      "access": "read",
+      "x-title": [
+        "파일 내용 읽기",
+        "Read a file"
+      ]
+    },
+    "files.write": {
+      "description": "Create or (with overwrite) replace a file, atomically. Max 16 MB.",
+      "capability": "files.write",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          },
+          "data": {
+            "type": "string",
+            "maxLength": 23000000
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "base64"
+            ]
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files-write",
+      "access": "write",
+      "x-title": [
+        "파일 저장",
+        "Save a file"
+      ]
+    },
+    "files.mkdir": {
+      "description": "Create a folder.",
+      "capability": "files.write",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files-write",
+      "access": "write",
+      "x-title": [
+        "폴더 만들기",
+        "Create a folder"
+      ]
+    },
+    "files.move": {
+      "description": "Rename or move a file or folder inside the home folder.",
+      "capability": "files.write",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          },
+          "to": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          }
+        },
+        "required": [
+          "path",
+          "to"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files-write",
+      "access": "write",
+      "x-title": [
+        "파일 이름 바꾸기 / 옮기기",
+        "Rename or move a file"
+      ]
+    },
+    "files.trash": {
+      "description": "Move a file or folder to the trash (~/.local/share/Trash).",
+      "capability": "files.write",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Path inside the home folder, e.g. /Documents/a.txt (\"/\" is ~). Hidden names are refused."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "files-write",
+      "access": "write",
+      "x-title": [
+        "파일을 휴지통으로",
+        "Move a file to the trash"
+      ]
+    },
+    "media.keys.wait": {
+      "description": "Wait up to timeout seconds (max 55) for a media key; returns {key} or {key:null}. The newest waiter receives the key.",
+      "capability": "mediakeys.read",
+      "params": {
+        "type": "object",
+        "properties": {
+          "timeout": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 55
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "mediakeys",
+      "access": "read",
+      "x-title": [
+        "미디어 키 받기",
+        "Receive media keys"
+      ]
+    },
+    "media.keys.press": {
+      "description": "Deliver a media key to the app waiting for it (used by the sway key bindings). Returns delivered=false when no app is waiting.",
+      "capability": "mediakeys.write",
+      "params": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "enum": [
+              "play-pause",
+              "play",
+              "pause",
+              "next",
+              "previous",
+              "stop"
+            ]
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "mediakeys",
+      "access": "write",
+      "x-title": [
+        "미디어 키 보내기",
+        "Send a media key"
+      ]
+    },
+    "update.status": {
+      "description": "Booted / staged / rollback images (image, version, digest, timestamp), whether an update is available (from the last check), restart_needed, running actions, the last action's result and the post-update health record (last_good, last_check, rolled_back).",
+      "capability": "updates.read",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "updates",
+      "access": "read",
+      "x-title": [
+        "OS 업데이트 상태 보기",
+        "Read OS update status"
+      ]
+    },
+    "update.check": {
+      "description": "Start `bootc upgrade --check` (download the manifest only). Returns at once; poll update.status. Always prompts.",
+      "capability": "updates.write",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "updates",
+      "access": "write",
+      "x-title": [
+        "OS 업데이트 확인",
+        "Check for an OS update"
+      ],
+      "consent": "always"
+    },
+    "update.apply": {
+      "description": "Start `bootc upgrade`: download and stage the new image. It boots at the next restart; the current image stays as rollback. Never reboots. Always prompts.",
+      "capability": "updates.write",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "updates",
+      "access": "write",
+      "x-title": [
+        "OS 업데이트 설치(다음 시작 때 적용)",
+        "Install an OS update (used at next restart)"
+      ],
+      "consent": "always"
+    },
+    "update.rollback": {
+      "description": "Start `bootc rollback`: the previous image boots at the next restart. Never reboots. Always prompts.",
+      "capability": "updates.write",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object"
+      },
+      "scope": "updates",
+      "access": "write",
+      "x-title": [
+        "이전 OS로 되돌리기(다음 시작 때 적용)",
+        "Roll back to the previous OS image (at next restart)"
+      ],
+      "consent": "always"
+    },
+    "display.list": {
+      "description": "Outputs (monitors) from sway: name, make/model, active, scale, position, current mode and offered modes; plus the saved per-output settings.",
+      "capability": "display.read",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "outputs"
+        ],
+        "properties": {
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "saved": {
+            "type": "object"
+          }
+        }
+      },
+      "scope": "display",
+      "access": "read",
+      "x-title": [
+        "화면 배치 보기",
+        "List screens"
+      ]
+    },
+    "display.set": {
+      "description": "Change one output: scale (0.5-4, 1/8 steps), position (x, y in layout pixels), mode, or enabled. Applies now and is saved (~/.config/grokbot/outputs.conf). Turning off the last active screen is refused.",
+      "capability": "display.write",
+      "scope": "display",
+      "access": "write",
+      "x-title": [
+        "화면 배치·배율 바꾸기",
+        "Change screen layout or scale"
+      ],
+      "params": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          },
+          "scale": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 4
+          },
+          "x": {
+            "type": "integer",
+            "minimum": -32768,
+            "maximum": 32767
+          },
+          "y": {
+            "type": "integer",
+            "minimum": -32768,
+            "maximum": 32767
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "object",
+            "required": [
+              "width",
+              "height"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "refresh": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "result": {
+        "type": "object"
+      }
+    }
+  },
+  "x-scopes": {
+    "system": {
+      "ko": "시스템 정보",
+      "en": "System information",
+      "always_ask": false
+    },
+    "windows": {
+      "ko": "창과 작업 공간",
+      "en": "Windows and workspaces",
+      "always_ask": false
+    },
+    "desktop": {
+      "ko": "독과 배경화면",
+      "en": "Docks and wallpaper",
+      "always_ask": false
+    },
+    "apps": {
+      "ko": "앱 목록, 설치와 실행",
+      "en": "Apps (list, install, open)",
+      "always_ask": false
+    },
+    "display": {
+      "ko": "화면 밝기",
+      "en": "Display",
+      "always_ask": false
+    },
+    "audio": {
+      "ko": "소리",
+      "en": "Sound",
+      "always_ask": false
+    },
+    "network": {
+      "ko": "네트워크와 Wi-Fi",
+      "en": "Network and Wi-Fi",
+      "always_ask": false
+    },
+    "power": {
+      "ko": "전원(절전, 다시 시작, 끄기)",
+      "en": "Power (suspend, restart, shut down)",
+      "always_ask": true
+    },
+    "input": {
+      "ko": "키보드와 한글 입력",
+      "en": "Keyboard and input method",
+      "always_ask": false
+    },
+    "notifications": {
+      "ko": "알림과 방해 금지",
+      "en": "Notifications and Do Not Disturb",
+      "always_ask": false
+    },
+    "lock": {
+      "ko": "화면 잠금과 대기",
+      "en": "Screen lock and idle",
+      "always_ask": false
+    },
+    "screen": {
+      "ko": "화면 캡처",
+      "en": "Screen capture",
+      "always_ask": false
+    },
+    "files": {
+      "ko": "홈 폴더 파일 보기",
+      "en": "See files in your home folder",
+      "always_ask": false
+    },
+    "camera": {
+      "ko": "카메라",
+      "en": "Camera",
+      "always_ask": true
+    },
+    "microphone": {
+      "ko": "마이크",
+      "en": "Microphone",
+      "always_ask": true
+    },
+    "location": {
+      "ko": "위치",
+      "en": "Location",
+      "always_ask": false,
+      "reserved": true
+    },
+    "permissions": {
+      "ko": "권한 관리",
+      "en": "Permission management",
+      "always_ask": false
+    },
+    "audit": {
+      "ko": "감사 기록",
+      "en": "Audit log",
+      "always_ask": false
+    },
+    "mediakeys": {
+      "ko": "미디어 키(재생, 다음 곡)",
+      "en": "Media keys (play, next track)",
+      "always_ask": false
+    },
+    "files-write": {
+      "ko": "홈 폴더 파일 바꾸기(저장, 이름 바꾸기, 휴지통)",
+      "en": "Change files in your home folder (save, rename, trash)",
+      "always_ask": false
+    },
+    "updates": {
+      "ko": "OS 업데이트(확인, 설치, 되돌리기)",
+      "en": "OS updates (check, install, roll back)",
+      "always_ask": true
     }
   }
 }

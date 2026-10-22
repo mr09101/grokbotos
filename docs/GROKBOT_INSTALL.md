@@ -49,8 +49,12 @@ grokbot-install [--json] remove <id>
 
 ```text
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak remote-info --user --show-metadata flathub <app-id>   # 요청 권한 읽기
+(확인 창 / consent prompt)
 flatpak install --user -y flathub <app-id>
 ```
+
+**설치 전 확인(보안 리뷰 #9).** 설치할 때마다 동의 창이 뜬다. 누가 요청했는지(호출 프로세스, grokbotd와 같은 방식으로 식별), 앱 id·이름, 앱이 요청하는 권한 전체(`[Context]`, D-Bus 정책)를 보여 주고, 샌드박스 밖으로 닿는 권한(`filesystems=host`/`home`, `devices=all`, `sockets=x11`/`system-bus`/`session-bus`, `org.freedesktop.Flatpak` talk)은 경고로 강조한다. 전원 수준 프롬프트라 "항상 허용"과 "이번 세션"이 없고, 거부·무응답(60초)·화면 없음은 설치하지 않음(종료 코드 3, `"error":"denied"`). `-y`는 flatpak 자신의 질문에만 답한다. 한계: 같은 uid 프로그램은 `flatpak`을 직접 부를 수 있으므로, 이 확인은 Grok Bot이 `grokbot-install`을 쓰는 경로를 지킨다(SECURITY.md 1번). 이후 앱 업데이트가 권한을 늘리는 것은 flatpak의 기본 동작을 따른다.
 
 앱 id는 `org.example.App` 형태만 받는다. 원격 이름은 `flathub`만. 다른 리모트, ref URL, `.flatpak` 경로는 이 명령으로 설치할 수 없다.
 

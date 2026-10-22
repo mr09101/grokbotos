@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시스템 모니터</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <img src="icon.svg" alt="" width="32" height="32">
+  <h1 data-t="title">시스템 모니터</h1>
+  <span id="status" class="pill"></span>
+  <span class="grow"></span>
+  <button type="button" id="lang">English</button>
+</header>
+<main id="grid">
+  <section class="card" id="c-cpu"><h2 data-t="cpu">CPU</h2><div class="big" id="cpu-v">—</div><canvas id="cpu-g" width="420" height="70"></canvas><div class="dim" id="cpu-d"></div></section>
+  <section class="card" id="c-mem"><h2 data-t="memory">메모리</h2><div class="big" id="mem-v">—</div><canvas id="mem-g" width="420" height="70"></canvas><div class="dim" id="mem-d"></div></section>
+  <section class="card" id="c-disk"><h2 data-t="disk">디스크</h2><div id="disk-v"></div></section>
+  <section class="card" id="c-bat"><h2 data-t="battery">배터리</h2><div id="bat-v"></div></section>
+  <section class="card" id="c-net"><h2 data-t="network">네트워크</h2><div id="net-v"></div></section>
+  <section class="card" id="c-audit"><h2 data-t="audit">OS API 기록 (최근 200건)</h2><div id="audit-v"></div></section>
+</main>
+<footer class="dim" id="foot"></footer>
+<script src="app.js"></script>
+</body>
+</html>

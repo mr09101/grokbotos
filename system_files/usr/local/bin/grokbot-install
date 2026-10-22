@@ -140,6 +140,16 @@ cmd_flatpak() {
         https://dl.flathub.org/repo/flathub.flatpakrepo; then
         fail 1 "flatpak_failed" "flatpak remote-add failed"
     fi
+    # Show what the app asks for and let the user decide, every time
+    # (security review #9). -y below only answers flatpak's own questions.
+    local metadata
+    if ! metadata=$(flatpak remote-info --user --show-metadata flathub "$app_id"); then
+        fail 1 "flatpak_failed" "flatpak remote-info failed (unknown app?)"
+    fi
+    if ! printf '%s\n' "$metadata" | python3 "${GROKBOT_PYLIB:-/usr/lib/grokbot}/flatpak_consent.py" \
+        "$app_id" "$name" "$PPID" 2>/dev/null; then
+        fail 3 "denied" "the user did not allow installing ${app_id}"
+    fi
     if ! flatpak install --user -y flathub "$app_id"; then
         fail 1 "flatpak_failed" "flatpak install failed"
     fi

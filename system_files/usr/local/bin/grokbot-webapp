@@ -1,0 +1,91 @@
+#!/bin/bash
+# Open an installed web app in its own app window: grokbot-webapp <id>
+#
+# Each app gets a chromeless Firefox window (userChrome.css hides the tab
+# strip and address bar; not --kiosk, which would cover the docks), the
+# Wayland app_id grokbot-webapp-<id> (the dock and sway match on it), and
+# its own profile ~/.local/share/grokbot/webapp-profiles/<id>. The profile
+# keeps the app's service worker, cache, IndexedDB and localStorage across
+# restarts and is never shared with another app or the normal browser.
+# One instance per app: a second call focuses the open window.
+set -euo pipefail
+id=${1:-}
+if [[ ! $id =~ ^[a-z][a-z0-9-]{0,30}$ ]]; then
+    echo "usage: grokbot-webapp <id>" >&2
+    exit 2
+fi
+if [[ $id == settings ]]; then
+    exec /usr/local/bin/grokbot-settings
+fi
+port=${GROKBOT_API_PORT:-7311}
+data=${XDG_DATA_HOME:-$HOME/.local/share}
+rec="$data/grokbot/installed/webapp.$id.json"
+sysapp="${GROKBOT_WEBAPPS_DIR:-/usr/share/grokbot/webapps}/$id/manifest.json"
+if [[ -f $sysapp ]]; then
+    start=$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1])).get("start_url") or "/"; print(s if s.startswith("/") else "/"+s)' "$sysapp")
+    url="http://$id.app.localhost:$port$start"
+elif [[ -f $rec ]]; then
+    url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["start_url"])' "$rec")
+else
+    echo "grokbot-webapp: no such app: $id" >&2
+    exit 1
+fi
+case $url in
+    https://* | http://*) ;;
+    *) echo "grokbot-webapp: bad start URL" >&2; exit 1 ;;
+esac
+host=${url#*://}
+host=${host%%/*}
+host=${host%%:*}
+# System web apps must show the per-origin token once (grokbotd/apptoken.py):
+# the server turns it into an HttpOnly cookie and redirects to the clean URL.
+gb_token() {
+    PYTHONPATH=${GROKBOT_LIB:-/usr/lib/grokbot} python3 -m grokbotd.apptoken "$1"
+}
+if [[ $url =~ ^(http://[a-z0-9-]+\.app\.localhost:[0-9]+)(/[^?#]*)?(\?[^#]*)?(#.*)?$ ]]; then
+    q=${BASH_REMATCH[3]}
+    q=${q:+$q&}
+    q=${q:-?}
+    launch_url="${BASH_REMATCH[1]}${BASH_REMATCH[2]:-/}${q}gbt=$(gb_token "${BASH_REMATCH[1]}")${BASH_REMATCH[4]}"
+else
+    launch_url=$url
+fi
+if [[ ${GROKBOT_WEBAPP_PRINT:-} == 1 ]]; then
+    echo "$url"
+    exit 0
+fi
+app_id="grokbot-webapp-$id"
+if swaymsg -q "[app_id=\"$app_id\"] focus" 2>/dev/null; then
+    exit 0
+fi
+profile="$data/grokbot/webapp-profiles/$id"
+mkdir -p "$profile/chrome"
+chmod 700 "$profile"
+cat >"$profile/chrome/userChrome.css" <<'CSS'
+#TabsToolbar, #nav-bar, #PersonalToolbar, #titlebar, #sidebar-box { visibility: collapse !important; }
+CSS
+# Rewritten on every start so a changed host or a newer default applies.
+cat >"$profile/user.js" <<JS
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("startup.homepage_welcome_url", "");
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
+user_pref("signon.rememberSignons", false);
+user_pref("browser.sessionstore.resume_from_crash", false);
+user_pref("browser.translations.automaticallyPopup", false);
+user_pref("intl.accept_languages", "ko-KR, ko, en-US, en");
+user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
+user_pref("browser.tabs.inTitlebar", 0);
+// Offline storage is the point of an installed app: keep it.
+user_pref("privacy.sanitize.sanitizeOnShutdown", false);
+user_pref("privacy.clearOnShutdown.offlineApps", false);
+user_pref("privacy.clearOnShutdown_v2.cookiesAndStorage", false);
+user_pref("dom.serviceWorkers.enabled", true);
+user_pref("dom.storageManager.prompt.testing", true);
+user_pref("dom.storageManager.prompt.testing.allow", true);
+// Service workers need a secure context; *.app.localhost is loopback.
+user_pref("dom.securecontext.allowlist", "$host");
+JS
+exec /usr/local/bin/grokbot-run firefox --new-instance --no-remote --profile "$profile" \
+    --name "$app_id" --class "$app_id" "$launch_url"

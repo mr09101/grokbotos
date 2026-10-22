@@ -1,0 +1,14 @@
+[Unit]
+Description=Grok Bot OS update: %i
+Documentation=https://github.com/head77x/grokbotos/blob/main/docs/OS_UPDATES.md
+After=network-online.target
+Wants=network-online.target
+# Only these four actions exist; anything else exits 2.
+ConditionPathExists=/usr/lib/grokbot/grokbot_update.py
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/lib/grokbot/grokbot_update.py %i
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle

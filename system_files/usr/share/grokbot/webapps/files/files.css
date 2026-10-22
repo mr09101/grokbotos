@@ -1,0 +1,24 @@
+.bar { display:flex; gap:8px; align-items:center; padding:8px 20px; border-bottom:1px solid var(--line); }
+#crumbs { display:flex; flex-wrap:wrap; gap:2px; align-items:center; }
+#crumbs button { background:transparent; border-color:transparent; padding:3px 7px; }
+#crumbs .sep { color:var(--dim); }
+.pill { font-size:12px; padding:2px 10px; border-radius:999px; background:#27272a; }
+.pill.ok { background:#14532d; } .pill.warn { background:#78350f; }
+#wrap { flex:1; display:flex; min-height:0; }
+#main { flex:1; overflow:auto; padding:6px 12px 20px; min-width:0; }
+table { width:100%; border-collapse:collapse; }
+th { text-align:left; color:var(--dim); font-weight:600; font-size:13px; padding:6px 8px; border-bottom:1px solid var(--line); }
+td { padding:6px 8px; border-bottom:1px solid #1d1d21; white-space:nowrap; }
+tr.row:hover td { background:#18181d; }
+tr.row.sel td { background:#1e3a5f; }
+td.name { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+td.name i { font-style:normal; display:inline-block; width:24px; }
+td.act { text-align:right; }
+td.act button { padding:2px 8px; font-size:13px; margin-left:4px; }
+#view { width:46%; border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0; }
+#view .bar { padding:8px 14px; }
+#view b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#vbody { flex:1; overflow:auto; padding:12px 14px; display:flex; }
+#vbody textarea { flex:1; resize:none; font:14px/1.6 "Noto Sans Mono CJK KR","Noto Sans Mono",monospace; }
+#vbody img { max-width:100%; max-height:100%; margin:auto; object-fit:contain; }
+.empty { text-align:center; color:var(--dim); padding:40px; }

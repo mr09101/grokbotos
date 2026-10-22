@@ -2,6 +2,7 @@
 # Idle policy for the kiosk session (swayidle). Started by sway.
 # /etc/grokbot/idle.conf, overridden by ~/.config/grokbot/idle.conf:
 #   [idle] screen_off = 300   lock = 600   (seconds, 0 = off)
+# Changes apply when swayidle restarts (lock.set_idle does that).
 # Lid close: logind suspends (HandleLidSwitch=suspend); before-sleep locks.
 set -euo pipefail
 sys_conf=${GROKBOT_IDLE_SYS_CONF:-/etc/grokbot/idle.conf}
@@ -20,23 +21,29 @@ conf_get() {
     echo "${v:-$def}"
 }
 
-screen_off=$(conf_get screen_off 300)
-lock=$(conf_get lock 600)
-args=(-w)
-if (( screen_off > 0 )); then
-    args+=(timeout "$screen_off" 'swaymsg "output * power off"' resume 'swaymsg "output * power on"')
-fi
-if (( lock > 0 )); then
-    args+=(timeout "$lock" '/usr/local/bin/grokbot-lock')
-fi
-args+=(before-sleep '/usr/local/bin/grokbot-lock' lock '/usr/local/bin/grokbot-lock')
+build_args() {
+    screen_off=$(conf_get screen_off 300)
+    lock=$(conf_get lock 600)
+    args=(-w)
+    if (( screen_off > 0 )); then
+        args+=(timeout "$screen_off" 'swaymsg "output * power off"' resume 'swaymsg "output * power on"')
+    fi
+    if (( lock > 0 )); then
+        args+=(timeout "$lock" '/usr/local/bin/grokbot-lock')
+    fi
+    args+=(before-sleep '/usr/local/bin/grokbot-lock' lock '/usr/local/bin/grokbot-lock')
+}
 
+build_args
 if [[ ${1:-} == "--print" ]]; then
     printf '%q ' swayidle "${args[@]}"
     echo
     exit 0
 fi
 while true; do
+    # Re-read the config each round: lock.set_idle (Settings) writes it
+    # and stops swayidle so new timeouts apply at once.
+    build_args
     swayidle "${args[@]}" || true
     sleep 1
 done

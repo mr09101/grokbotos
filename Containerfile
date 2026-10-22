@@ -10,10 +10,11 @@ COPY grokbot-app /grokbot-app
 # from ghcr.io/ublue-os/base-main (2026-07-09): base-main is amd64-only,
 # which blocks building/testing this image on arm64 (e.g. Apple Silicon
 # Macs via UTM). See docs/DECISIONS.md for the full history.
-# Not pinned to a digest yet -- quay.io isn't reachable from this dev
-# sandbox to resolve one; pin it once resolvable (from CI logs or a
-# machine with normal network access).
-FROM quay.io/fedora/fedora-bootc:latest
+# Pinned by digest (security review #8): the multi-arch index that
+# quay.io/fedora/fedora-bootc:latest pointed to on 2026-10-22. To update,
+# resolve the tag again and replace the digest in one reviewed commit:
+#   skopeo inspect --raw docker://quay.io/fedora/fedora-bootc:latest | sha256sum
+FROM quay.io/fedora/fedora-bootc:latest@sha256:28f842889ffee5a2bfc1c1bd742a15c13b2f73a41a492312410a961e457e8d63
 
 # Grok Bot Linux app. Empty SOURCE selects the pinned RPM for TARGETARCH
 # (amd64 and arm64). GROKBOT_DISABLE_BUNDLED_APP=1 keeps the placeholder.
